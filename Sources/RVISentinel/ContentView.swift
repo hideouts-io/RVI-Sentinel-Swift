@@ -27,6 +27,8 @@ struct ContentView: View {
                     BaselineView()
                 case .exports:
                     ExportView()
+                case .diagnostics:
+                    DiagnosticsView()
                 }
             }
             .toolbar {

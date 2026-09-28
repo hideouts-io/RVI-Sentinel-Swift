@@ -98,7 +98,7 @@ Status meanings: **Implemented** is buildable native behavior with automated tes
 | Explicit baseline preview/update | Yes | Implemented with preview, backup, reset, and export copy | Physical workflow review |
 | JSON and CSV export | Yes | Implemented with typed JSON and CSV hash manifest | Larger golden-schema corpus |
 | HTML, PDF, hashes, coverage export | No/partial | HTML, hashes, provenance, and coverage implemented; PDF pending | Rendered HTML and PDF implementation |
-| Redacted diagnostics | Yes | Scaffolded | Privacy corpus tests |
+| Redacted diagnostics | Yes | Implemented with preview, clipboard copy, and local JSON save | Privacy corpus and UI review |
 | Dark/light/accessibility | Partial | Native system behavior | UI automation and VoiceOver review |
 
 ## Dependencies and licensing

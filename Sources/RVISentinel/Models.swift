@@ -8,6 +8,7 @@ enum NavigationSection: String, CaseIterable, Identifiable {
     case analysis = "Analysis"
     case baselines = "Baselines"
     case exports = "Exports"
+    case diagnostics = "Diagnostics"
 
     var id: String { rawValue }
 
@@ -20,6 +21,7 @@ enum NavigationSection: String, CaseIterable, Identifiable {
         case .analysis: "waveform.path.ecg.rectangle"
         case .baselines: "square.stack.3d.up"
         case .exports: "square.and.arrow.up"
+        case .diagnostics: "stethoscope"
         }
     }
 }

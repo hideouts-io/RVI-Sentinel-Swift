@@ -25,6 +25,8 @@ final class AppState: ObservableObject {
     @Published var exportDirectory: URL
     @Published private(set) var exportReceipts: [ExportReceipt] = []
     @Published private(set) var isExporting = false
+    @Published private(set) var diagnosticsPreview = ""
+    @Published private(set) var diagnosticsCopiedAt: Date?
     @Published var lastError: String?
     @Published var selectedDeviceIdentifier: String?
     @Published var outputDirectory: URL
@@ -371,6 +373,51 @@ final class AppState: ObservableObject {
         }
     }
 
+    func refreshDiagnostics() {
+        do {
+            diagnosticsPreview = try diagnosticsText(generatedAt: Date())
+        } catch {
+            diagnosticsPreview = ""
+            lastError = error.localizedDescription
+        }
+    }
+
+    func copyDiagnostics() {
+        do {
+            let value = try diagnosticsText(generatedAt: Date())
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            guard pasteboard.setString(value, forType: .string) else {
+                throw DiagnosticsError.clipboardWriteFailed
+            }
+            diagnosticsPreview = value
+            diagnosticsCopiedAt = Date()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    func saveDiagnostics() {
+        let panel = NSSavePanel()
+        panel.title = "Save Redacted Diagnostics"
+        panel.prompt = "Save"
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = "rvi-sentinel-diagnostics.json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let value = try diagnosticsText(generatedAt: Date())
+            do {
+                try Data(value.utf8).write(to: url, options: .atomic)
+            } catch {
+                throw DiagnosticsError.exportFailed(path: url.path, reason: error.localizedDescription)
+            }
+            diagnosticsPreview = value
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     private func loadBaseline(url: URL) {
         do {
             let document = try baselineStore.load(url: url)
@@ -389,6 +436,41 @@ final class AppState: ObservableObject {
             return
         }
         baselineComparison = compareBaseline(document: baselineDocument, result: analysisResult, comparedAt: Date())
+    }
+
+    private func diagnosticsText(generatedAt: Date) throws -> String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unversioned development build"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unversioned development build"
+        let sensitiveValues = devices.flatMap { [$0.name, $0.identifier] } + [
+            outputDirectory.path,
+            exportDirectory.path,
+            baselineURL?.path ?? "",
+            analysisCaptureURL?.path ?? "",
+            captureCompletion?.savedURL.path ?? ""
+        ]
+        let input = DiagnosticsInput(
+            generatedAt: generatedAt,
+            application: DiagnosticApplication(
+                name: "RVI-Sentinel",
+                version: version,
+                build: build,
+                operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString,
+                architecture: currentArchitectureName()
+            ),
+            devices: devices,
+            setupChecks: setupChecks,
+            interfaces: interfaces,
+            capturePhase: captureProgress.phase,
+            captureRunning: isCapturing,
+            validatedCaptureAvailable: captureCompletion != nil,
+            analysisRunning: isAnalyzing,
+            analysisResultAvailable: analysisResult != nil,
+            baselineSelected: baselineDocument != nil,
+            localExportCount: exportReceipts.count,
+            recentError: lastError,
+            sensitiveValues: sensitiveValues
+        )
+        return try encodeRedactedDiagnostics(makeRedactedDiagnostics(input: input))
     }
 }
 
