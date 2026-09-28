@@ -38,7 +38,7 @@ struct ExportView: View {
                 ContentUnavailableView(
                     "No analysis results",
                     systemImage: "doc.text.magnifyingglass",
-                    description: Text("Analyze an authorized capture first. Exporting never runs active DNS resolution.")
+                    description: Text("Analyze an authorized capture first. Exports reuse the completed analysis and do not perform additional hostname lookups.")
                 )
             } else if appState.exportReceipts.isEmpty {
                 ContentUnavailableView(

@@ -111,6 +111,57 @@ struct InterfaceClassification: Equatable {
     let isSelectable: Bool
 }
 
+func captureReportedIOSInterfaces(names: [String]) -> [NetworkInterfaceInfo] {
+    let uniqueNames: Set<String> = Set(names.filter { !$0.isEmpty && !isTemporaryRVIInterface(name: $0) })
+    return uniqueNames.map { name in
+        let classification: InterfaceClassification = classifyObservedIOSInterface(name: name)
+        return NetworkInterfaceInfo(
+            name: name,
+            friendlyType: classification.friendlyType,
+            isUp: true,
+            ipv4Addresses: [],
+            ipv6Addresses: [],
+            macAddress: nil,
+            mtu: nil,
+            flags: ["OBSERVED"],
+            linkType: "Capture metadata",
+            associatedService: classification.associatedService,
+            owner: .ios,
+            isSelectable: false,
+            evidenceSource: "Packet metadata field frame.interface_name"
+        )
+    }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+}
+
+func isTemporaryRVIInterface(name: String) -> Bool {
+    name.range(of: #"^rvi[0-9]+$"#, options: .regularExpression) != nil
+}
+
+func classifyObservedIOSInterface(name: String) -> InterfaceClassification {
+    if name.hasPrefix("pdp_ip") {
+        return InterfaceClassification(friendlyType: "Cellular packet data", associatedService: "iOS cellular networking", owner: .ios, isSelectable: false)
+    }
+    if name.hasPrefix("utun") {
+        return InterfaceClassification(friendlyType: "User tunnel", associatedService: "iOS VPN or system tunnel", owner: .ios, isSelectable: false)
+    }
+    if name.hasPrefix("en") {
+        return InterfaceClassification(friendlyType: "Ethernet or Wi-Fi", associatedService: "iOS network interface", owner: .ios, isSelectable: false)
+    }
+    if name.hasPrefix("lo") {
+        return InterfaceClassification(friendlyType: "Loopback", associatedService: "Local iOS traffic", owner: .ios, isSelectable: false)
+    }
+    if name.hasPrefix("awdl") {
+        return InterfaceClassification(friendlyType: "Apple Wireless Direct Link", associatedService: "AirDrop, AirPlay, and peer services", owner: .ios, isSelectable: false)
+    }
+    if name.hasPrefix("llw") {
+        return InterfaceClassification(friendlyType: "Low-latency Wi-Fi", associatedService: "Apple peer networking", owner: .ios, isSelectable: false)
+    }
+    if name.hasPrefix("ipsec") {
+        return InterfaceClassification(friendlyType: "IPsec tunnel", associatedService: "iOS encrypted tunnel", owner: .ios, isSelectable: false)
+    }
+    return InterfaceClassification(friendlyType: "Capture-reported interface", associatedService: "iOS role not established", owner: .ios, isSelectable: false)
+}
+
 func classifyInterface(name: String) -> InterfaceClassification {
     if name.hasPrefix("rvi") {
         return InterfaceClassification(friendlyType: "Remote Virtual Interface", associatedService: "Apple RVI", owner: .remoteVirtualInterface, isSelectable: true)

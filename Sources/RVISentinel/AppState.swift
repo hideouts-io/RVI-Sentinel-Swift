@@ -33,7 +33,6 @@ final class AppState: ObservableObject {
     @Published var showAdvancedDetails = false
 
     private let discoveryService: DeviceDiscoveryService
-    private let interfaceService: InterfaceInventoryService
     private let setupChecker: SetupChecker
     private let captureCoordinator: CaptureCoordinator
     private let analyzer: TSharkAnalyzer
@@ -42,7 +41,6 @@ final class AppState: ObservableObject {
 
     init(
         discoveryService: DeviceDiscoveryService,
-        interfaceService: InterfaceInventoryService,
         setupChecker: SetupChecker,
         captureCoordinator: CaptureCoordinator,
         analyzer: TSharkAnalyzer,
@@ -51,7 +49,6 @@ final class AppState: ObservableObject {
         outputDirectory: URL
     ) {
         self.discoveryService = discoveryService
-        self.interfaceService = interfaceService
         self.setupChecker = setupChecker
         self.captureCoordinator = captureCoordinator
         self.analyzer = analyzer
@@ -79,7 +76,6 @@ final class AppState: ObservableObject {
         let output = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
         return AppState(
             discoveryService: discovery,
-            interfaceService: interfaceService,
             setupChecker: checker,
             captureCoordinator: captureCoordinator,
             analyzer: analyzer,
@@ -113,16 +109,6 @@ final class AppState: ObservableObject {
             lastError = error.localizedDescription
         }
         isRefreshingDevices = false
-    }
-
-    func refreshInterfaces() {
-        lastError = nil
-        do {
-            interfaces = try interfaceService.inventory()
-        } catch {
-            interfaces = []
-            lastError = error.localizedDescription
-        }
     }
 
     func chooseOutputDirectory() {
@@ -198,7 +184,8 @@ final class AppState: ObservableObject {
         guard let captureCompletion else { return }
         analysisCaptureURL = captureCompletion.savedURL
         analysisResult = nil
-        analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Ready to analyze the completed capture without active lookups.")
+        interfaces = []
+        analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Ready to analyze the completed capture with IPv4 and IPv6 resolution enabled.")
         selectedSection = .analysis
     }
 
@@ -209,17 +196,22 @@ final class AppState: ObservableObject {
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.data]
+        let contentTypes = packetCaptureContentTypes()
+        guard contentTypes.count == supportedPacketCaptureExtensions.count else {
+            lastError = "macOS could not register the supported .pcap, .pcapng, and .cap file types."
+            return
+        }
+        panel.allowedContentTypes = contentTypes
         if panel.runModal() == .OK, let selectedURL = panel.url {
-            let allowed = ["pcap", "pcapng", "cap"]
-            guard allowed.contains(selectedURL.pathExtension.lowercased()) else {
+            guard supportedPacketCaptureExtensions.contains(selectedURL.pathExtension.lowercased()) else {
                 lastError = "Choose a .pcap, .pcapng, or .cap file."
                 return
             }
             analysisCaptureURL = selectedURL
             analysisResult = nil
+            interfaces = []
             baselineComparison = nil
-            analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Ready to analyze locally. Active name resolution is disabled.")
+            analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Ready to analyze locally with IPv4 and IPv6 resolution enabled.")
         }
     }
 
@@ -230,12 +222,14 @@ final class AppState: ObservableObject {
         }
         isAnalyzing = true
         analysisResult = nil
+        interfaces = []
         lastError = nil
         do {
             let result = try await analyzer.analyze(captureURL: analysisCaptureURL) { [weak self] update in
                 Task { @MainActor in self?.analysisProgress = update }
             }
             analysisResult = result
+            interfaces = captureReportedIOSInterfaces(names: result.summary.interfaces)
             if let baselineDocument {
                 baselineComparison = compareBaseline(document: baselineDocument, result: result, comparedAt: Date())
             }
@@ -471,6 +465,14 @@ final class AppState: ObservableObject {
             sensitiveValues: sensitiveValues
         )
         return try encodeRedactedDiagnostics(makeRedactedDiagnostics(input: input))
+    }
+}
+
+let supportedPacketCaptureExtensions: [String] = ["pcap", "pcapng", "cap"]
+
+func packetCaptureContentTypes() -> [UTType] {
+    supportedPacketCaptureExtensions.compactMap { fileExtension in
+        UTType(filenameExtension: fileExtension, conformingTo: .data)
     }
 }
 

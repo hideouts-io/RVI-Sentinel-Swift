@@ -4,7 +4,7 @@ enum NavigationSection: String, CaseIterable, Identifiable {
     case overview = "Overview"
     case setup = "Check Setup"
     case devices = "Device & Capture"
-    case interfaces = "Interfaces"
+    case interfaces = "iOS Interfaces"
     case analysis = "Analysis"
     case baselines = "Baselines"
     case exports = "Exports"
@@ -82,6 +82,7 @@ struct DeviceInfo: Identifiable, Codable, Equatable, Sendable {
 
 enum InterfaceOwner: String, Codable {
     case mac = "Mac"
+    case ios = "iPhone or iPad"
     case remoteVirtualInterface = "RVI connection"
     case vpn = "VPN or tunnel"
     case unknown = "Unclassified host interface"
@@ -116,7 +117,7 @@ enum EvidenceProvenance: String, Codable, CaseIterable, Sendable {
     case quicHandshake = "QUIC or HTTP/3 handshake evidence"
     case certificate = "Certificate SAN or subject"
     case capturedPTR = "Captured PTR answer"
-    case activeReverseLookup = "Optional active reverse lookup"
+    case activeReverseLookup = "Active reverse lookup"
     case localResolver = "Local hosts or resolver cache"
     case userAnnotation = "User-supplied annotation"
 }

@@ -46,17 +46,17 @@ actor TSharkAnalyzer {
             tsharkVersion: version,
             supportedFields: supported,
             unsupportedFields: unsupported,
-            activeResolutionEnabled: false,
+            activeResolutionEnabled: true,
             limitations: [
                 "TShark fields absent from the installed version are marked unsupported, not absent from the capture.",
                 "Encrypted TLS, QUIC, VPN, SSH, and IPsec payloads remain unavailable unless separately and legitimately decrypted.",
-                "Ordinary PCAP/RVI traffic does not prove an iOS process owner or internal iOS interface.",
+                "Capture-reported interface labels prove packet observation on those labels, not a complete inventory of every iOS interface that was up.",
                 "Source and destination counts are packet directions, not automatically inbound or outbound relative to the phone.",
                 "Protocol detail values are bounded per TShark field to protect memory; any omitted distinct values are reported explicitly.",
-                "Active hostname and reverse-DNS lookup is disabled; no investigated address is sent to a resolver."
+                "Active IPv4 and IPv6 reverse-DNS resolution is enabled. Observed addresses may be sent to the Mac's configured resolver; resulting names are labeled post-capture enrichment rather than captured proof."
             ]
         )
-        progress(AnalysisProgress(decodedPackets: 0, status: "Decoding packets locally with name resolution disabled."))
+        progress(AnalysisProgress(decodedPackets: 0, status: "Decoding packets with IPv4 and IPv6 resolution enabled."))
         let hash = try sha256(url: captureURL)
         let errorURL = FileManager.default.temporaryDirectory.appendingPathComponent("rvi-sentinel-tshark-\(UUID().uuidString).stderr")
         FileManager.default.createFile(atPath: errorURL.path, contents: nil)
@@ -116,7 +116,7 @@ actor TSharkAnalyzer {
         guard accumulator.packetCount > 0 else {
             throw NativeAnalysisError.invalidCapture("TShark decoded zero packets. The file may be empty, truncated, or unsupported.")
         }
-        progress(AnalysisProgress(decodedPackets: accumulator.packetCount, status: "Analysis complete. No active lookups were performed."))
+        progress(AnalysisProgress(decodedPackets: accumulator.packetCount, status: "Analysis complete. IPv4 and IPv6 names were actively resolved where available."))
         return accumulator.result(captureURL: captureURL, hash: hash, coverage: coverage)
     }
 }
@@ -137,7 +137,7 @@ func parseTSharkFieldCatalog(_ output: String) -> Set<String> {
 
 func tsharkArguments(captureURL: URL, fields: [TSharkField]) -> [String] {
     var arguments = [
-        "-n",
+        "-N", "nN",
         "-r", captureURL.path,
         "-T", "fields",
         "-E", "header=n",

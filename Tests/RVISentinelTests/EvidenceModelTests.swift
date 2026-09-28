@@ -34,6 +34,34 @@ final class EvidenceModelTests: XCTestCase {
         XCTAssertNil(attribution.processIdentifier)
     }
 
+    func testEndpointHostnameLabelsPreserveNameAndProvenance() {
+        let timestamp = Date(timeIntervalSince1970: 1_720_000_000)
+        let hostnames: [HostnameEvidence] = [
+            HostnameEvidence(
+                hostname: "resolved.example",
+                address: "192.0.2.1",
+                provenance: .activeReverseLookup,
+                firstSeen: timestamp,
+                lastSeen: timestamp,
+                confidence: .low,
+                isPostCaptureEnrichment: true
+            ),
+            HostnameEvidence(
+                hostname: "captured.example",
+                address: "192.0.2.1",
+                provenance: .tlsSNI,
+                firstSeen: timestamp,
+                lastSeen: timestamp,
+                confidence: .direct,
+                isPostCaptureEnrichment: false
+            )
+        ]
+
+        XCTAssertEqual(endpointHostnameLabel(address: "192.0.2.1", hostnames: hostnames), "captured.example, resolved.example")
+        XCTAssertEqual(endpointHostnameProvenanceLabel(address: "192.0.2.1", hostnames: hostnames), "Active reverse lookup, TLS SNI")
+        XCTAssertEqual(endpointHostnameLabel(address: "2001:db8::1", hostnames: hostnames), "Not resolved")
+    }
+
     func testDeviceChecksSeparateUSBFromTrust() {
         let device = DeviceInfo(
             name: "Research iPhone",

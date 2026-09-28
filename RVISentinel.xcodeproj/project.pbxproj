@@ -8,11 +8,13 @@
 
 /* Begin PBXBuildFile section */
 		004B0A0BD2E818931556EDD1 /* BaselineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DEB03A195ACB6418E32EB38 /* BaselineView.swift */; };
+		07ABF1AF0BD78CB13AAC938A /* PhysicalWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1E6A15212E652B402FC199D /* PhysicalWorkflowTests.swift */; };
 		0CF7650CC9A6E9CDE7C667C2 /* AnalysisModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C68087EA88289F045E7D5C0 /* AnalysisModels.swift */; };
 		0EDE72EF8354DB0D96FD7CF0 /* EvidenceModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B940C2559CBC8D7D61E459A7 /* EvidenceModelTests.swift */; };
 		115A77B0D33B7B3109206406 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBF1D9AD1DED359B23829509 /* Models.swift */; };
 		14D99F45D23744018673AE2D /* PacketAnalysisTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF960F372B648683B742318A /* PacketAnalysisTests.swift */; };
 		16C14BE27E1202A427168FBA /* ProtocolDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BEDB1EB3EE88804846CFB06 /* ProtocolDetails.swift */; };
+		1A5535A262E9F466E8914B02 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F086A701D6A26DE8786A5F /* AppStateTests.swift */; };
 		1ABA945D949786BB2D3412F7 /* BaselineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE97DDC9419521E9CC87F60 /* BaselineStore.swift */; };
 		2132201F9EED35234E8DE93F /* ProcessRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F404B04DD5D0C8C7179599F2 /* ProcessRunnerTests.swift */; };
 		37EDE4E8821411BC3E778403 /* ReportExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B87C3DA94DF9627242EE2B /* ReportExporter.swift */; };
@@ -80,6 +82,8 @@
 		A5AFC1E46F220EB7262B187E /* BaselineModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BaselineModels.swift; sourceTree = "<group>"; };
 		A9B87C3DA94DF9627242EE2B /* ReportExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportExporter.swift; sourceTree = "<group>"; };
 		AF960F372B648683B742318A /* PacketAnalysisTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketAnalysisTests.swift; sourceTree = "<group>"; };
+		B1E6A15212E652B402FC199D /* PhysicalWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalWorkflowTests.swift; sourceTree = "<group>"; };
+		B7F086A701D6A26DE8786A5F /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		B92F6743E6DF44EC7B18D5C4 /* ExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportView.swift; sourceTree = "<group>"; };
 		B940C2559CBC8D7D61E459A7 /* EvidenceModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceModelTests.swift; sourceTree = "<group>"; };
 		B9C97B324FBAB8B06FCD86FC /* RVISentinel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RVISentinel.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -157,6 +161,7 @@
 			isa = PBXGroup;
 			children = (
 				C81CA75A7513D946EC2B4C88 /* AnalysisFixture.swift */,
+				B7F086A701D6A26DE8786A5F /* AppStateTests.swift */,
 				5B196F7CFB08E5BC4E7F44AA /* BaselineStoreTests.swift */,
 				28CB418EB7C6E349E31E4461 /* CaptureCoordinatorTests.swift */,
 				3DEDBF14408432BC9F12974C /* DeviceDiscoveryTests.swift */,
@@ -164,6 +169,7 @@
 				B940C2559CBC8D7D61E459A7 /* EvidenceModelTests.swift */,
 				A40DCABBFE6EA22A033A3629 /* InterfaceInventoryTests.swift */,
 				AF960F372B648683B742318A /* PacketAnalysisTests.swift */,
+				B1E6A15212E652B402FC199D /* PhysicalWorkflowTests.swift */,
 				F404B04DD5D0C8C7179599F2 /* ProcessRunnerTests.swift */,
 				2F58C26E110E1505BAB206A6 /* ReportExporterTests.swift */,
 			);
@@ -291,6 +297,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7C64EB18183B041060E41FCC /* AnalysisFixture.swift in Sources */,
+				1A5535A262E9F466E8914B02 /* AppStateTests.swift in Sources */,
 				A01454E269EF7723B3DDDC24 /* BaselineStoreTests.swift in Sources */,
 				5B611AA566E72D3315C09FA6 /* CaptureCoordinatorTests.swift in Sources */,
 				9611D3EA8A2AD7CC4D35571A /* DeviceDiscoveryTests.swift in Sources */,
@@ -298,6 +305,7 @@
 				0EDE72EF8354DB0D96FD7CF0 /* EvidenceModelTests.swift in Sources */,
 				B4D10559ED87579C19204AD6 /* InterfaceInventoryTests.swift in Sources */,
 				14D99F45D23744018673AE2D /* PacketAnalysisTests.swift in Sources */,
+				07ABF1AF0BD78CB13AAC938A /* PhysicalWorkflowTests.swift in Sources */,
 				2132201F9EED35234E8DE93F /* ProcessRunnerTests.swift in Sources */,
 				5E02B085C745552898D3FE30 /* ReportExporterTests.swift in Sources */,
 			);

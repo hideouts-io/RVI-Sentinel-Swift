@@ -17,4 +17,16 @@ final class InterfaceInventoryTests: XCTestCase {
         XCTAssertEqual(Set(interfaces.map(\.name)).count, interfaces.count)
         XCTAssertTrue(interfaces.allSatisfy { !$0.evidenceSource.isEmpty })
     }
+
+    func testCaptureReportedIOSInterfacesContainOnlyObservedDeviceLabels() {
+        let interfaces: [NetworkInterfaceInfo] = captureReportedIOSInterfaces(
+            names: ["rvi0", "pdp_ip0", "utun6", "en2", "pdp_ip0"]
+        )
+
+        XCTAssertEqual(interfaces.map(\.name), ["en2", "pdp_ip0", "utun6"])
+        XCTAssertTrue(interfaces.allSatisfy(\.isUp))
+        XCTAssertTrue(interfaces.allSatisfy { $0.owner == .ios })
+        XCTAssertTrue(interfaces.allSatisfy { $0.ipv4Addresses.isEmpty && $0.ipv6Addresses.isEmpty })
+        XCTAssertTrue(interfaces.allSatisfy { $0.evidenceSource == "Packet metadata field frame.interface_name" })
+    }
 }

@@ -105,14 +105,38 @@ final class PacketAnalysisTests: XCTestCase {
         XCTAssertEqual(catalog, ["frame.number", "dns.qry.name"])
     }
 
-    func testTSharkArgumentsDisableResolutionAndPreserveFieldOrder() {
+    func testTSharkArgumentsEnableIPv4AndIPv6ResolutionAndPreserveFieldOrder() {
         let arguments = tsharkArguments(
             captureURL: URL(fileURLWithPath: "/tmp/authorized.pcapng"),
             fields: [.frameNumber, .dnsQueryName]
         )
 
-        XCTAssertEqual(arguments.first, "-n")
+        XCTAssertEqual(Array(arguments.prefix(2)), ["-N", "nN"])
         XCTAssertEqual(Array(arguments.suffix(4)), ["-e", "frame.number", "-e", "dns.qry.name"])
+    }
+
+    func testActiveResolutionIsPostCaptureEnrichmentWithAddressProvenance() throws {
+        let fields: [TSharkField] = [
+            .frameTimeEpoch, .frameLength, .frameProtocols,
+            .ipv4Source, .ipv4SourceHost, .ipv6Destination, .ipv6DestinationHost
+        ]
+        let row: String = [
+            "1720000000.0", "128", "ip:ipv6:udp",
+            "192.0.2.10", "source.example", "2001:db8::10", "destination.example"
+        ].map { "\"\($0)\"" }.joined(separator: "\t")
+        var accumulator = AnalysisAccumulator()
+        try accumulator.consume(packet: decodePacketRow(row: row, fields: fields))
+        let result: NativeAnalysisResult = accumulator.result(
+            captureURL: URL(fileURLWithPath: "/tmp/synthetic.pcapng"),
+            hash: String(repeating: "c", count: 64),
+            coverage: AnalysisCoverage(tsharkVersion: "synthetic", supportedFields: fields, unsupportedFields: [], activeResolutionEnabled: true, limitations: [])
+        )
+
+        XCTAssertEqual(Set(result.hostnames.map(\.hostname)), ["source.example", "destination.example"])
+        XCTAssertEqual(Set(result.hostnames.compactMap(\.address)), ["192.0.2.10", "2001:db8::10"])
+        XCTAssertTrue(result.hostnames.allSatisfy { $0.provenance == .activeReverseLookup })
+        XCTAssertTrue(result.hostnames.allSatisfy(\.isPostCaptureEnrichment))
+        XCTAssertTrue(result.hostnames.allSatisfy { $0.confidence == .low })
     }
 
     func testAddressClassification() {
@@ -131,7 +155,9 @@ final class PacketAnalysisTests: XCTestCase {
         let captureURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("rvi-sentinel-analysis-\(UUID().uuidString).pcap")
         try syntheticUDPPacketCapture().write(to: captureURL, options: .atomic)
-        defer { try? FileManager.default.removeItem(at: captureURL) }
+        addTeardownBlock {
+            try FileManager.default.removeItem(at: captureURL)
+        }
 
         let result = try await TSharkAnalyzer(processRunner: ProcessRunner()).analyze(
             captureURL: captureURL,
@@ -139,9 +165,9 @@ final class PacketAnalysisTests: XCTestCase {
         )
 
         XCTAssertEqual(result.summary.packetCount, 1)
-        XCTAssertEqual(Set(result.endpoints.map(\.address)), ["192.0.2.1", "198.51.100.1"])
+        XCTAssertEqual(Set(result.endpoints.map(\.address)), ["127.0.0.1"])
         XCTAssertNotNil(result.protocols.first { $0.protocolKind == .udp })
-        XCTAssertEqual(result.coverage.activeResolutionEnabled, false)
+        XCTAssertTrue(result.coverage.activeResolutionEnabled)
     }
 }
 
@@ -157,8 +183,8 @@ private func syntheticUDPPacketCapture() -> Data {
         0x08, 0x00,
         0x45, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x00,
         0x40, 0x11, 0x00, 0x00,
-        0xc0, 0x00, 0x02, 0x01,
-        0xc6, 0x33, 0x64, 0x01,
+        0x7f, 0x00, 0x00, 0x01,
+        0x7f, 0x00, 0x00, 0x01,
         0x00, 0x35, 0x14, 0xe9, 0x00, 0x08, 0x00, 0x00
     ])
 }

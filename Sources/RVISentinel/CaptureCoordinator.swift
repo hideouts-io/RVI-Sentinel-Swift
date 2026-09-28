@@ -429,14 +429,16 @@ func makeAuthorizedCapturePlan(
     let captureFailedMessage = shellQuote("tcpdump could not remain running for the requested capture.")
     let command = [
         "set -eu",
+        "set -m",
         "capture_pid=''",
-        "cleanup_capture() { if [ -n \"$capture_pid\" ] && /bin/kill -0 \"$capture_pid\" 2>/dev/null; then /bin/kill -INT \"$capture_pid\"; wait \"$capture_pid\" 2>/dev/null || true; fi; /bin/rm -f \(shellQuote(preflight.path)) \(shellQuote(authorization.path)) \(shellQuote(ready.path)) \(shellQuote(cancellation.path)); }",
+        "stop_capture() { if [ -n \"$capture_pid\" ] && /bin/kill -0 \"$capture_pid\" 2>/dev/null; then /bin/kill -USR2 \"$capture_pid\" 2>/dev/null || true; /bin/sleep 1; /bin/kill -KILL \"$capture_pid\" 2>/dev/null || true; wait \"$capture_pid\" 2>/dev/null || true; fi; capture_pid=''; }",
+        "cleanup_capture() { stop_capture; /bin/rm -f \(shellQuote(preflight.path)) \(shellQuote(authorization.path)) \(shellQuote(ready.path)) \(shellQuote(cancellation.path)); }",
         "trap cleanup_capture HUP INT TERM EXIT",
         "/usr/bin/touch \(shellQuote(authorization.path))",
         "\(preflightCommand) & capture_pid=$!",
         "for preflight_second in 1 2 3 4 5; do if [ -e \(shellQuote(cancellation.path)) ]; then break; fi; if ! /bin/kill -0 \"$capture_pid\" 2>/dev/null; then break; fi; /bin/sleep 1; done",
-        "if [ -e \(shellQuote(cancellation.path)) ]; then /bin/kill -INT \"$capture_pid\" 2>/dev/null || true; wait \"$capture_pid\" 2>/dev/null || true; capture_pid=''; exit 44; fi",
-        "if /bin/kill -0 \"$capture_pid\" 2>/dev/null; then /bin/kill -INT \"$capture_pid\"; wait \"$capture_pid\" 2>/dev/null || true; capture_pid=''; /usr/bin/printf '%s\\n' \(noPacketMessage) > \(shellQuote(failure.path)); exit 42; fi",
+        "if [ -e \(shellQuote(cancellation.path)) ]; then stop_capture; exit 44; fi",
+        "if /bin/kill -0 \"$capture_pid\" 2>/dev/null; then stop_capture; /usr/bin/printf '%s\\n' \(noPacketMessage) > \(shellQuote(failure.path)); exit 42; fi",
         "preflight_status=0; wait \"$capture_pid\" || preflight_status=$?; capture_pid=''",
         "if [ \"$preflight_status\" -ne 0 ] || [ ! -s \(shellQuote(preflight.path)) ]; then /usr/bin/printf '%s\\n' \(preflightFailedMessage) > \(shellQuote(failure.path)); exit 43; fi",
         "/bin/rm -f \(shellQuote(preflight.path))",
@@ -447,10 +449,8 @@ func makeAuthorizedCapturePlan(
         "capture_started_at=$(/bin/date +%s)",
         "capture_deadline=$((capture_started_at + \(configuration.durationSeconds)))",
         "while [ \"$(/bin/date +%s)\" -lt \"$capture_deadline\" ] && /bin/kill -0 \"$capture_pid\" 2>/dev/null && [ ! -e \(shellQuote(cancellation.path)) ]; do /bin/sleep 1; done",
-        "if [ -e \(shellQuote(cancellation.path)) ]; then /bin/kill -INT \"$capture_pid\" 2>/dev/null || true; wait \"$capture_pid\" 2>/dev/null || true; capture_pid=''; exit 44; fi",
-        "/bin/kill -INT \"$capture_pid\" 2>/dev/null || true",
-        "capture_status=0; wait \"$capture_pid\" || capture_status=$?; capture_pid=''",
-        "if [ \"$capture_status\" -ne 0 ]; then /usr/bin/printf '%s\\n' \(captureFailedMessage) > \(shellQuote(failure.path)); exit \"$capture_status\"; fi",
+        "if [ -e \(shellQuote(cancellation.path)) ]; then stop_capture; exit 44; fi",
+        "stop_capture",
         "/bin/rm -f \(shellQuote(authorization.path)) \(shellQuote(ready.path)) \(shellQuote(cancellation.path))",
         "trap - EXIT"
     ].joined(separator: "; ")

@@ -33,7 +33,7 @@ struct AnalysisView: View {
                 .pickerStyle(.segmented)
                 resultView(result: result)
             } else {
-                ContentUnavailableView("No analysis results", systemImage: "doc.text.magnifyingglass", description: Text("Choose an authorized capture. Active DNS and reverse lookup remain off."))
+                ContentUnavailableView("No analysis results", systemImage: "doc.text.magnifyingglass", description: Text("Choose an authorized capture. IPv4 and IPv6 hostname resolution runs automatically during analysis."))
             }
         }
         .padding(28)
@@ -44,7 +44,7 @@ struct AnalysisView: View {
     private func resultView(result: NativeAnalysisResult) -> some View {
         switch selectedResultTab {
         case .summary: AnalysisSummaryView(result: result)
-        case .endpoints: EndpointResultsView(endpoints: result.endpoints)
+        case .endpoints: EndpointResultsView(endpoints: result.endpoints, hostnames: result.hostnames)
         case .hostnames: HostnameResultsView(hostnames: result.hostnames)
         case .protocols: ProtocolResultsView(protocols: result.protocols)
         case .details: ProtocolDetailResultsView(details: result.protocolDetails)
@@ -101,7 +101,7 @@ struct AnalysisSummaryView: View {
                         GridRow { Text("First packet").foregroundStyle(.secondary); Text(result.summary.firstPacket?.formatted() ?? "Unavailable") }
                         GridRow { Text("Last packet").foregroundStyle(.secondary); Text(result.summary.lastPacket?.formatted() ?? "Unavailable") }
                         GridRow { Text("Decoder").foregroundStyle(.secondary); Text(result.coverage.tsharkVersion) }
-                        GridRow { Text("Active resolution").foregroundStyle(.secondary); Text("Disabled") }
+                        GridRow { Text("Active resolution").foregroundStyle(.secondary); Text(result.coverage.activeResolutionEnabled ? "Enabled for IPv4 and IPv6" : "Disabled") }
                     }
                     .textSelection(.enabled)
                     .padding(.vertical, 6)
@@ -124,10 +124,24 @@ struct AnalysisSummaryView: View {
 
 struct EndpointResultsView: View {
     let endpoints: [EndpointObservation]
+    let hostnames: [HostnameEvidence]
 
     var body: some View {
         Table(endpoints) {
             TableColumn("Address") { Text($0.address).font(.body.monospaced()).textSelection(.enabled) }.width(min: 150, ideal: 220)
+            TableColumn("Resolved hostname") { endpoint in
+                Text(endpointHostnameLabel(address: endpoint.address, hostnames: hostnames))
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+            }
+            .width(min: 170, ideal: 250)
+            TableColumn("Name source") { endpoint in
+                Text(endpointHostnameProvenanceLabel(address: endpoint.address, hostnames: hostnames))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            .width(min: 150, ideal: 210)
             TableColumn("Scope") { Text($0.classification) }.width(110)
             TableColumn("Source / destination packets") { Text("\($0.sourcePackets) / \($0.destinationPackets)").monospacedDigit() }.width(170)
             TableColumn("Traffic") { Text(ByteCountFormatter.string(fromByteCount: $0.sourceBytes + $0.destinationBytes, countStyle: .file)) }.width(95)
@@ -135,6 +149,16 @@ struct EndpointResultsView: View {
             TableColumn("Process") { Text($0.processAttribution.processName).foregroundStyle(.secondary) }.width(min: 180, ideal: 240)
         }
     }
+}
+
+func endpointHostnameLabel(address: String, hostnames: [HostnameEvidence]) -> String {
+    let names: [String] = Array(Set(hostnames.filter { $0.address == address }.map(\.hostname))).sorted()
+    return names.isEmpty ? "Not resolved" : names.joined(separator: ", ")
+}
+
+func endpointHostnameProvenanceLabel(address: String, hostnames: [HostnameEvidence]) -> String {
+    let sources: [String] = Array(Set(hostnames.filter { $0.address == address }.map { $0.provenance.rawValue })).sorted()
+    return sources.isEmpty ? "No hostname evidence" : sources.joined(separator: ", ")
 }
 
 struct HostnameResultsView: View {

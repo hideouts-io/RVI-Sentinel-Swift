@@ -14,7 +14,7 @@ final class CaptureCoordinatorTests: XCTestCase {
         status: "Ready — paired over USB"
     )
 
-    func testAuthorizedPlanUsesPacketPreflightBoundedTimerAndSIGINT() throws {
+    func testAuthorizedPlanUsesPacketPreflightBoundedTimerAndForcedFlush() throws {
         let root = URL(fileURLWithPath: "/tmp/RVI Sentinel Tests")
         let configuration = CaptureConfiguration(
             device: readyDevice,
@@ -32,9 +32,13 @@ final class CaptureCoordinatorTests: XCTestCase {
 
         XCTAssertTrue(plan.shellCommand.contains("'-c' '1'"))
         XCTAssertTrue(plan.shellCommand.contains("capture_deadline=$((capture_started_at + 30))"))
-        XCTAssertTrue(plan.shellCommand.contains("/bin/kill -INT"))
+        XCTAssertTrue(plan.shellCommand.contains("/bin/kill -USR2"))
+        XCTAssertTrue(plan.shellCommand.contains("/bin/kill -KILL"))
+        XCTAssertFalse(plan.shellCommand.contains("/bin/kill -INT"))
         XCTAssertFalse(plan.shellCommand.contains("/bin/kill -TERM"))
+        XCTAssertTrue(plan.shellCommand.contains("set -m"))
         XCTAssertTrue(plan.shellCommand.contains("'/tmp/RVI Sentinel Tests/Authorized Capture.pcapng'"))
+        XCTAssertEqual(plan.shellCommand.components(separatedBy: "stop_capture").count - 1, 6)
     }
 
     func testRejectsUnsafeRVIName() {

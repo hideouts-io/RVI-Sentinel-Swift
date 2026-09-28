@@ -91,6 +91,6 @@ func makeExportDocument(result: NativeAnalysisResult, generatedAt: Date) -> Anal
         protocolDetails: result.protocolDetails,
         ports: result.ports,
         coverage: result.coverage,
-        evidenceBoundary: "A new observation is a change to investigate, not proof of malicious activity. Ordinary PCAP/RVI traffic does not prove an iOS process or internal iOS interface."
+        evidenceBoundary: "A new observation is a change to investigate, not proof of malicious activity. RVI interface labels prove where captured packets were observed, not every iOS interface that was up, and packet data does not prove an iOS process owner."
     )
 }

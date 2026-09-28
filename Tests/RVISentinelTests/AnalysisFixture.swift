@@ -70,7 +70,7 @@ func makeSyntheticAnalysisResult(captureURL: URL, hash: String) -> NativeAnalysi
             tsharkVersion: "TShark synthetic",
             supportedFields: [.frameNumber, .frameTimeEpoch, .frameLength, .frameProtocols, .tlsSNI],
             unsupportedFields: [.certificateSubject],
-            activeResolutionEnabled: false,
+            activeResolutionEnabled: true,
             limitations: ["Encrypted payloads remain unavailable."]
         )
     )

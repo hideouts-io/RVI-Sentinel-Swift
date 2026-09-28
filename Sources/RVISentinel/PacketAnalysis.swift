@@ -291,6 +291,16 @@ struct AnalysisAccumulator {
         addHostnames(packet.all(.tlsSNI), address: destinationAddress, provenance: .tlsSNI, timestamp: timestamp)
         addHostnames(packet.all(.httpHost), address: destinationAddress, provenance: .httpHost, timestamp: timestamp)
         addHostnames(packet.all(.http2Authority), address: destinationAddress, provenance: .http2Authority, timestamp: timestamp)
+        addResolvedHostnames(addresses: packet.all(.ipv4Source), hostnames: packet.all(.ipv4SourceHost), timestamp: timestamp)
+        addResolvedHostnames(addresses: packet.all(.ipv4Destination), hostnames: packet.all(.ipv4DestinationHost), timestamp: timestamp)
+        addResolvedHostnames(addresses: packet.all(.ipv6Source), hostnames: packet.all(.ipv6SourceHost), timestamp: timestamp)
+        addResolvedHostnames(addresses: packet.all(.ipv6Destination), hostnames: packet.all(.ipv6DestinationHost), timestamp: timestamp)
+    }
+
+    private mutating func addResolvedHostnames(addresses: [String], hostnames: [String], timestamp: Date) {
+        for pair in resolvedHostnamePairs(addresses: addresses, hostnames: hostnames) {
+            addHostname(pair.hostname, address: pair.address, provenance: .activeReverseLookup, timestamp: timestamp)
+        }
     }
 
     private mutating func addHostnames(_ names: [String], address: String?, provenance: EvidenceProvenance, timestamp: Date) {
@@ -300,6 +310,8 @@ struct AnalysisAccumulator {
     private mutating func addHostname(_ name: String, address: String?, provenance: EvidenceProvenance, timestamp: Date) {
         let normalized = name.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
         guard !normalized.isEmpty else { return }
+        let isPostCaptureEnrichment: Bool = provenance == .activeReverseLookup || provenance == .localResolver
+        let confidence: ConfidenceLevel = provenance == .activeReverseLookup ? .low : .direct
         let key = "\(normalized)|\(address ?? "")|\(provenance.rawValue)"
         if let existing = hostnameEvidence[key] {
             hostnameEvidence[key] = HostnameEvidence(
@@ -309,7 +321,7 @@ struct AnalysisAccumulator {
                 firstSeen: min(existing.firstSeen, timestamp),
                 lastSeen: max(existing.lastSeen, timestamp),
                 confidence: existing.confidence,
-                isPostCaptureEnrichment: false
+                isPostCaptureEnrichment: existing.isPostCaptureEnrichment
             )
         } else {
             hostnameEvidence[key] = HostnameEvidence(
@@ -318,11 +330,31 @@ struct AnalysisAccumulator {
                 provenance: provenance,
                 firstSeen: timestamp,
                 lastSeen: timestamp,
-                confidence: .direct,
-                isPostCaptureEnrichment: false
+                confidence: confidence,
+                isPostCaptureEnrichment: isPostCaptureEnrichment
             )
         }
     }
+}
+
+func resolvedHostnamePairs(addresses: [String], hostnames: [String]) -> [(address: String, hostname: String)] {
+    guard addresses.count == hostnames.count else { return [] }
+    return zip(addresses, hostnames).compactMap { address, hostname in
+        let normalizedHostname: String = hostname.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
+        guard !normalizedHostname.isEmpty,
+              normalizedHostname.caseInsensitiveCompare(address) != .orderedSame,
+              !isIPAddress(normalizedHostname) else {
+            return nil
+        }
+        return (address: address, hostname: normalizedHostname)
+    }
+}
+
+func isIPAddress(_ value: String) -> Bool {
+    var ipv4 = in_addr()
+    if inet_pton(AF_INET, value, &ipv4) == 1 { return true }
+    var ipv6 = in6_addr()
+    return inet_pton(AF_INET6, value, &ipv6) == 1
 }
 
 func decodePacketRow(row: String, fields: [TSharkField]) throws -> DecodedPacket {

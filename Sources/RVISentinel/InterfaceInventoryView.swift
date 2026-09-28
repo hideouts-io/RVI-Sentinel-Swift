@@ -5,38 +5,35 @@ struct InterfaceInventoryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            PageHeader(title: "Interfaces", subtitle: "Inventory host-visible interfaces without implying hidden iOS routing", symbol: "network")
+            PageHeader(title: "iOS Interfaces", subtitle: "Show only interface labels observed carrying packets in the analyzed iPhone or iPad capture", symbol: "network")
             HStack {
-                Text("Every row identifies its evidence source and ownership boundary.")
+                Text("IPv4 and IPv6 hostname resolution is always enabled during analysis.")
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Refresh", systemImage: "arrow.clockwise") { appState.refreshInterfaces() }
+                Button("Open Analysis", systemImage: "waveform.path.ecg.rectangle") { appState.selectedSection = .analysis }
             }
             if appState.interfaces.isEmpty {
-                ContentUnavailableView("No interface inventory loaded", systemImage: "network.slash", description: Text("Choose Refresh to enumerate interfaces visible to this Mac."))
+                ContentUnavailableView(
+                    appState.analysisResult == nil ? "Analyze a capture first" : "No iOS interface metadata was reported",
+                    systemImage: "network.slash",
+                    description: Text(appState.analysisResult == nil
+                        ? "Choose an authorized RVI capture and run Analysis. Host Mac interfaces are intentionally not shown here."
+                        : "The capture did not contain frame.interface_name metadata for an iOS interface. This does not mean every interface was down.")
+                )
             } else {
                 Table(appState.interfaces) {
                     TableColumn("Interface") { item in
-                        VStack(alignment: .leading) {
-                            Text(item.name).font(.body.monospaced().bold())
-                            Text(item.friendlyType).font(.caption).foregroundStyle(.secondary)
-                        }
+                        Text(item.name).font(.body.monospaced().bold())
                     }
                     .width(min: 140, ideal: 180)
-                    TableColumn("State") { item in
-                        Label(item.isUp ? "Up" : "Down", systemImage: item.isUp ? "checkmark.circle.fill" : "minus.circle")
-                            .foregroundStyle(item.isUp ? .green : .secondary)
+                    TableColumn("State") { _ in
+                        Label("Active in capture", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
                     }
-                    .width(75)
-                    TableColumn("Addresses") { item in
+                    .width(130)
+                    TableColumn("Likely role") { item in
                         VStack(alignment: .leading) {
-                            ForEach(item.ipv4Addresses, id: \.self) { Text($0).font(.caption.monospaced()) }
-                            ForEach(item.ipv6Addresses, id: \.self) { Text($0).font(.caption.monospaced()).lineLimit(1) }
-                        }
-                    }
-                    TableColumn("Owner") { item in
-                        VStack(alignment: .leading) {
-                            Text(item.owner.rawValue)
+                            Text(item.friendlyType)
                             Text(item.associatedService).font(.caption).foregroundStyle(.secondary)
                         }
                     }
@@ -47,15 +44,12 @@ struct InterfaceInventoryView: View {
                     .width(min: 180, ideal: 240)
                 }
             }
-            Text("These are interfaces visible to macOS. An RVI packet does not by itself prove whether the iPhone used Wi-Fi, cellular data, or an internal VPN tunnel.")
+            Text("A row means packets were observed with that capture-reported interface label. It does not prove that every other iOS interface was down or that the capture saw every interface. Temporary Mac-side rvi interfaces are excluded.")
                 .font(.callout)
                 .padding()
                 .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
         }
         .padding(28)
-        .navigationTitle("Interfaces")
-        .onAppear {
-            if appState.interfaces.isEmpty { appState.refreshInterfaces() }
-        }
+        .navigationTitle("iOS Interfaces")
     }
 }

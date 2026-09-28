@@ -93,7 +93,7 @@ struct OverviewView: View {
                     WorkflowCard(number: 2, title: "Select Device", detail: "Choose a physical, booted iPhone or iPad paired over USB. The full device identifier stays hidden.", symbol: "iphone.gen3") {
                         appState.selectedSection = .devices
                     }
-                    WorkflowCard(number: 3, title: "Choose Evidence Source", detail: "RVI is device traffic. Mac interfaces are inventoried separately and never captured silently.", symbol: "network") {
+                    WorkflowCard(number: 3, title: "Review iOS Interfaces", detail: "Show only capture-reported interface labels that carried packets. Mac host interfaces are excluded.", symbol: "network") {
                         appState.selectedSection = .interfaces
                     }
                     WorkflowCard(number: 4, title: "Capture and Validate", detail: "Authorize the narrow capture operation, verify live packets, capture for a bounded duration, flush, validate, and clean up.", symbol: "record.circle") {
@@ -150,7 +150,7 @@ struct LimitationBanner: View {
         VStack(alignment: .leading, spacing: 7) {
             Label("Evidence boundary", systemImage: "eye.trianglebadge.exclamationmark")
                 .font(.headline)
-            Text("RVI packets do not inherently reveal an iOS process or the phone's internal en0, pdp_ip, or utun interface. The app must display “Process not observable from this capture” unless independent evidence proves ownership.")
+            Text("RVI packets do not inherently reveal an iOS process. Capture-reported interface labels such as en, pdp_ip, or utun prove packet observation on those labels, but not a complete inventory of every interface that was up.")
                 .foregroundStyle(.secondary)
         }
         .padding()
