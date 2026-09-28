@@ -29,6 +29,101 @@ enum CaptureCoordinatorError: LocalizedError {
     }
 }
 
+enum CaptureRecoveryKind: String, Equatable, Sendable {
+    case noTraffic
+    case deviceUnavailable
+    case authorization
+    case dependencyOrRVI
+    case validation
+    case cancelled
+    case captureFailure
+}
+
+struct CaptureRecovery: Equatable, Sendable {
+    let kind: CaptureRecoveryKind
+    let title: String
+    let action: String
+    let retrySafety: String
+    let evidenceImpact: String
+}
+
+func captureFailurePhase(error: Error) -> CapturePhase {
+    if error is CancellationError { return .cancelled }
+    guard let captureError = error as? CaptureCoordinatorError else { return .failed }
+    if case .cancelled = captureError { return .cancelled }
+    return .failed
+}
+
+func captureRecoveryGuidance(error: Error) -> CaptureRecovery {
+    guard let captureError = error as? CaptureCoordinatorError else {
+        return CaptureRecovery(
+            kind: .captureFailure,
+            title: "Capture stopped unexpectedly",
+            action: "Review the error, run Check Setup, then retry with the same settings.",
+            retrySafety: "Retrying creates a new timestamped destination and does not overwrite an existing file.",
+            evidenceImpact: "Any incomplete output is not validated evidence and must be reviewed separately."
+        )
+    }
+    switch captureError {
+    case .noTraffic:
+        return CaptureRecovery(
+            kind: .noTraffic,
+            title: "Device connected, but no packets arrived",
+            action: "Keep the device connected and unlocked, open a webpage or another network activity, then try the capture again.",
+            retrySafety: "The capture countdown never began. You can retry without changing the selected device, duration, format, or destination.",
+            evidenceImpact: "No validated capture was replaced or added to a baseline."
+        )
+    case .deviceUnavailable:
+        return CaptureRecovery(
+            kind: .deviceUnavailable,
+            title: "The device connection changed",
+            action: "Reconnect and unlock the device, confirm Trust if prompted, refresh devices, then retry.",
+            retrySafety: "Refreshing device state and retrying do not modify an existing validated capture.",
+            evidenceImpact: "No process or network conclusion should be drawn from a disconnected-device failure."
+        )
+    case .authorizationFailed:
+        return CaptureRecovery(
+            kind: .authorization,
+            title: "macOS authorization did not complete",
+            action: "Start again and approve the native administrator dialog. RVI-Sentinel never reads or stores the password.",
+            retrySafety: "Retrying requests a new bounded authorization and does not reuse credentials.",
+            evidenceImpact: "An output file is not treated as evidence unless post-capture validation succeeds."
+        )
+    case .dependencyUnavailable, .rviCreationFailed, .rviNotStable, .invalidConfiguration:
+        return CaptureRecovery(
+            kind: .dependencyOrRVI,
+            title: "Capture setup could not become ready",
+            action: "Run Check Setup, follow the failed check's corrective action, and retry only after readiness passes.",
+            retrySafety: "Setup checks are read-only and retrying uses a new timestamped destination.",
+            evidenceImpact: "Existing captures, baselines, and exports remain unchanged."
+        )
+    case .validationFailed:
+        return CaptureRecovery(
+            kind: .validation,
+            title: "The saved output could not be validated",
+            action: "Keep the file only for manual review, run Check Setup, and create a new capture before analysis.",
+            retrySafety: "Retrying creates a separate file and does not overwrite the unvalidated output.",
+            evidenceImpact: "Do not treat the unvalidated file as complete capture evidence."
+        )
+    case .cancelled:
+        return CaptureRecovery(
+            kind: .cancelled,
+            title: "Capture cancelled",
+            action: "Review any incomplete output separately or try again with the retained settings.",
+            retrySafety: "A retry uses a new timestamped destination and does not overwrite the cancelled output.",
+            evidenceImpact: "Cancelled output is not reported as a validated capture."
+        )
+    case .captureFailed:
+        return CaptureRecovery(
+            kind: .captureFailure,
+            title: "Packet capture stopped before validation",
+            action: "Review the error and Check Setup results, then retry after correcting the reported cause.",
+            retrySafety: "Retrying creates a new timestamped destination and does not overwrite an existing file.",
+            evidenceImpact: "Incomplete output remains separate and is not added to a baseline automatically."
+        )
+    }
+}
+
 struct CaptureFileStatistics: Equatable, Sendable {
     let packetCount: Int
     let fileSize: Int64

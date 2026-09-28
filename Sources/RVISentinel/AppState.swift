@@ -14,6 +14,7 @@ final class AppState: ObservableObject {
     @Published private(set) var isCapturing = false
     @Published private(set) var captureProgress = CaptureProgress(phase: .idle, elapsedSeconds: 0, packetCount: 0, bytesWritten: 0, status: "Ready to configure a capture.")
     @Published private(set) var captureCompletion: CaptureCompletion?
+    @Published private(set) var captureRecovery: CaptureRecovery?
     @Published var analysisCaptureURL: URL?
     @Published private(set) var isAnalyzing = false
     @Published private(set) var analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Choose an authorized capture to begin.")
@@ -143,6 +144,7 @@ final class AppState: ObservableObject {
         )
         isCapturing = true
         captureCompletion = nil
+        captureRecovery = nil
         lastError = nil
         do {
             let completion = try await captureCoordinator.capture(configuration: configuration) { [weak self] update in
@@ -150,13 +152,15 @@ final class AppState: ObservableObject {
             }
             captureCompletion = completion
         } catch {
+            let failurePhase = captureFailurePhase(error: error)
             captureProgress = CaptureProgress(
-                phase: error is CancellationError ? .cancelled : .failed,
+                phase: failurePhase,
                 elapsedSeconds: captureProgress.elapsedSeconds,
                 packetCount: captureProgress.packetCount,
                 bytesWritten: captureProgress.bytesWritten,
                 status: error.localizedDescription
             )
+            captureRecovery = captureRecoveryGuidance(error: error)
             lastError = error.localizedDescription
         }
         isCapturing = false
@@ -172,6 +176,7 @@ final class AppState: ObservableObject {
 
     func clearCaptureCompletion() {
         captureCompletion = nil
+        captureRecovery = nil
         captureProgress = CaptureProgress(phase: .idle, elapsedSeconds: 0, packetCount: 0, bytesWritten: 0, status: "Ready to configure another capture.")
     }
 

@@ -69,6 +69,17 @@ struct DeviceCaptureView: View {
                 durationSeconds: durationSeconds,
                 isCapturing: appState.isCapturing
             )
+            if let recovery = appState.captureRecovery {
+                CaptureRecoveryView(
+                    recovery: recovery,
+                    retry: {
+                        Task { await appState.startCapture(durationSeconds: durationSeconds, format: captureFormat) }
+                    },
+                    refreshDevices: {
+                        Task { await appState.refreshDevices() }
+                    }
+                )
+            }
             if let completion = appState.captureCompletion {
                 CaptureCompletionView(completion: completion)
             }
@@ -78,6 +89,39 @@ struct DeviceCaptureView: View {
         .navigationTitle("Device & Capture")
         .task {
             if appState.devices.isEmpty { await appState.refreshDevices() }
+        }
+    }
+}
+
+struct CaptureRecoveryView: View {
+    let recovery: CaptureRecovery
+    let retry: () -> Void
+    let refreshDevices: () -> Void
+
+    private var titleColor: Color {
+        recovery.kind == .cancelled ? .gray : .orange
+    }
+
+    var body: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 10) {
+                Label(recovery.title, systemImage: recovery.kind == .cancelled ? "stop.circle.fill" : "exclamationmark.triangle.fill")
+                    .font(.headline)
+                    .foregroundStyle(titleColor)
+                Text(recovery.action)
+                Label(recovery.retrySafety, systemImage: "arrow.clockwise")
+                    .foregroundStyle(.secondary)
+                Label(recovery.evidenceImpact, systemImage: "checkmark.shield")
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("Try Capture Again", action: retry)
+                        .buttonStyle(.borderedProminent)
+                    if recovery.kind == .deviceUnavailable {
+                        Button("Refresh Devices", action: refreshDevices)
+                    }
+                }
+            }
+            .padding(.vertical, 8)
         }
     }
 }

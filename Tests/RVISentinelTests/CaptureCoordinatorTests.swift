@@ -78,4 +78,26 @@ final class CaptureCoordinatorTests: XCTestCase {
         XCTAssertEqual(shellQuote("A path/with spaces"), "'A path/with spaces'")
         XCTAssertEqual(shellQuote("owner's file"), "'owner'\"'\"'s file'")
     }
+
+    func testNoTrafficRecoveryRetainsCaptureConfigurationAndSeparatesEvidenceState() {
+        let recovery = captureRecoveryGuidance(error: CaptureCoordinatorError.noTraffic("Synthetic no-traffic fixture"))
+
+        XCTAssertEqual(recovery.kind, .noTraffic)
+        XCTAssertTrue(recovery.action.contains("open a webpage"))
+        XCTAssertTrue(recovery.retrySafety.contains("without changing the selected device, duration, format, or destination"))
+        XCTAssertTrue(recovery.evidenceImpact.contains("No validated capture"))
+    }
+
+    func testDeviceUnavailableRecoveryIsDistinctFromNoTraffic() {
+        let recovery = captureRecoveryGuidance(error: CaptureCoordinatorError.deviceUnavailable("Synthetic disconnect fixture"))
+
+        XCTAssertEqual(recovery.kind, .deviceUnavailable)
+        XCTAssertTrue(recovery.action.contains("Reconnect"))
+        XCTAssertFalse(recovery.action.contains("open a webpage"))
+    }
+
+    func testCoordinatorCancellationUsesCancelledPhase() {
+        XCTAssertEqual(captureFailurePhase(error: CaptureCoordinatorError.cancelled), .cancelled)
+        XCTAssertEqual(captureRecoveryGuidance(error: CaptureCoordinatorError.cancelled).kind, .cancelled)
+    }
 }
