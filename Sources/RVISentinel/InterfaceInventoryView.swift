@@ -11,6 +11,7 @@ struct InterfaceInventoryView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button("Open Analysis", systemImage: "waveform.path.ecg.rectangle") { appState.selectedSection = .analysis }
+                    .accessibilityIdentifier(AccessibilityIdentifier.openAnalysis.rawValue)
             }
             if appState.interfaces.isEmpty {
                 ContentUnavailableView(

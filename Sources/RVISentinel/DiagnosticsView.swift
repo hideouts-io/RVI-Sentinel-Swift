@@ -17,10 +17,13 @@ struct DiagnosticsView: View {
                 .background(.blue.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
             HStack {
                 Button("Refresh Preview") { appState.refreshDiagnostics() }
+                    .accessibilityIdentifier(AccessibilityIdentifier.refreshDiagnostics.rawValue)
                 Spacer()
                 Button("Copy Redacted Diagnostics") { appState.copyDiagnostics() }
                     .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier(AccessibilityIdentifier.copyDiagnostics.rawValue)
                 Button("Save Diagnostics…") { appState.saveDiagnostics() }
+                    .accessibilityIdentifier(AccessibilityIdentifier.saveDiagnostics.rawValue)
             }
             GroupBox("Redacted preview") {
                 ScrollView {

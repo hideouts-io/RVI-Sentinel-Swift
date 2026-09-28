@@ -18,12 +18,15 @@ struct AnalysisView: View {
                 Spacer()
                 Button("Choose Capture…") { appState.chooseAnalysisCapture() }
                     .disabled(appState.isAnalyzing)
+                    .accessibilityIdentifier(AccessibilityIdentifier.chooseAnalysisCapture.rawValue)
                 if appState.isAnalyzing {
                     Button("Cancel", role: .destructive) { Task { await appState.cancelAnalysis() } }
+                        .accessibilityIdentifier(AccessibilityIdentifier.cancelAnalysis.rawValue)
                 }
                 Button("Analyze Locally") { Task { await appState.startAnalysis() } }
                     .buttonStyle(.borderedProminent)
                     .disabled(appState.analysisCaptureURL == nil || appState.isAnalyzing)
+                    .accessibilityIdentifier(AccessibilityIdentifier.startAnalysis.rawValue)
             }
             AnalysisProgressView(progress: appState.analysisProgress, isAnalyzing: appState.isAnalyzing)
             if let result = appState.analysisResult {
@@ -31,6 +34,7 @@ struct AnalysisView: View {
                     ForEach(ResultTab.allCases) { tab in Text(tab.rawValue).tag(tab) }
                 }
                 .pickerStyle(.segmented)
+                .accessibilityIdentifier(AccessibilityIdentifier.analysisResultPicker.rawValue)
                 resultView(result: result)
             } else {
                 ContentUnavailableView("No analysis results", systemImage: "doc.text.magnifyingglass", description: Text("Choose an authorized capture. IPv4 and IPv6 hostname resolution runs automatically during analysis."))
@@ -77,6 +81,7 @@ struct AnalysisProgressView: View {
             Spacer()
             if progress.decodedPackets > 0 { Text("\(progress.decodedPackets.formatted()) packets").font(.caption.monospacedDigit()) }
         }
+        .accessibilityIdentifier(AccessibilityIdentifier.analysisProgress.rawValue)
     }
 }
 

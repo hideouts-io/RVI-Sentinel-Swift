@@ -13,6 +13,7 @@ struct SetupView: View {
                 }
                 Spacer()
                 Button("Choose Folder…") { appState.chooseOutputDirectory() }
+                    .accessibilityIdentifier(AccessibilityIdentifier.chooseSetupFolder.rawValue)
                 Button {
                     Task { await appState.runSetupChecks() }
                 } label: {
@@ -24,6 +25,7 @@ struct SetupView: View {
                 }
                 .disabled(appState.isCheckingSetup)
                 .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier(AccessibilityIdentifier.runSetupChecks.rawValue)
             }
             if appState.setupChecks.isEmpty {
                 ContentUnavailableView("Setup has not been checked", systemImage: "checklist", description: Text("Run checks before starting a capture."))

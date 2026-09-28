@@ -24,6 +24,57 @@ enum NavigationSection: String, CaseIterable, Identifiable {
         case .diagnostics: "stethoscope"
         }
     }
+
+    var accessibilityIdentifier: String {
+        "navigation.\(String(describing: self))"
+    }
+}
+
+enum AccessibilityIdentifier: String {
+    case advancedDetails = "toolbar.advanced-details"
+    case chooseSetupFolder = "setup.choose-folder"
+    case runSetupChecks = "setup.run-checks"
+    case refreshDevices = "capture.refresh-devices"
+    case deviceList = "capture.device-list"
+    case captureDuration = "capture.duration"
+    case captureFormat = "capture.format"
+    case chooseCaptureDestination = "capture.choose-destination"
+    case startCapture = "capture.start"
+    case cancelCapture = "capture.cancel"
+    case retryCapture = "capture.retry"
+    case recoveryRefreshDevices = "capture.recovery-refresh-devices"
+    case captureStatus = "capture.status"
+    case captureCompletion = "capture.completion"
+    case analyzeCompletedCapture = "capture.completion-analyze"
+    case revealCompletedCapture = "capture.completion-reveal"
+    case captureAgain = "capture.completion-again"
+    case chooseAnalysisCapture = "analysis.choose-capture"
+    case startAnalysis = "analysis.start"
+    case cancelAnalysis = "analysis.cancel"
+    case analysisProgress = "analysis.progress"
+    case analysisResultPicker = "analysis.result-picker"
+    case baselineScopeName = "baseline.scope-name"
+    case createBaseline = "baseline.create"
+    case chooseBaseline = "baseline.choose"
+    case exportBaseline = "baseline.export-copy"
+    case resetBaseline = "baseline.reset"
+    case addBaselineFindings = "baseline.add-findings"
+    case chooseExportFolder = "export.choose-folder"
+    case exportJSON = "export.json"
+    case exportCSV = "export.csv"
+    case exportHTML = "export.html"
+    case refreshDiagnostics = "diagnostics.refresh"
+    case copyDiagnostics = "diagnostics.copy-redacted"
+    case saveDiagnostics = "diagnostics.save"
+    case openAnalysis = "interfaces.open-analysis"
+}
+
+func exportAccessibilityIdentifier(format: ReportExportFormat) -> AccessibilityIdentifier {
+    switch format {
+    case .json: .exportJSON
+    case .csv: .exportCSV
+    case .html: .exportHTML
+    }
 }
 
 enum CheckState: String, Codable {

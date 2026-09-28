@@ -23,12 +23,14 @@ struct ExportView: View {
                 }
                 Spacer()
                 Button("Choose Folder…") { appState.chooseExportDirectory() }
+                    .accessibilityIdentifier(AccessibilityIdentifier.chooseExportFolder.rawValue)
                 ForEach(ReportExportFormat.allCases) { format in
                     Button("Export \(format.rawValue)") {
                         Task { await appState.exportAnalysis(format: format) }
                     }
                     .buttonStyle(.bordered)
                     .disabled(appState.analysisResult == nil || appState.isExporting)
+                    .accessibilityIdentifier(exportAccessibilityIdentifier(format: format).rawValue)
                 }
             }
             if appState.isExporting {

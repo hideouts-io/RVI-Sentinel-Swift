@@ -22,6 +22,7 @@ struct DeviceCaptureView: View {
                     }
                 }
                 .disabled(appState.isRefreshingDevices)
+                .accessibilityIdentifier(AccessibilityIdentifier.refreshDevices.rawValue)
             }
             GroupBox("Connected Apple mobile devices") {
                 if appState.devices.isEmpty {
@@ -35,16 +36,19 @@ struct DeviceCaptureView: View {
                         }
                     }
                     .frame(minHeight: 180)
+                    .accessibilityIdentifier(AccessibilityIdentifier.deviceList.rawValue)
                 }
             }
             GroupBox("Capture configuration") {
                 Form {
                     Stepper("Duration: \(durationSeconds) seconds", value: $durationSeconds, in: 5...3_600, step: 5)
+                        .accessibilityIdentifier(AccessibilityIdentifier.captureDuration.rawValue)
                     Picker("Format", selection: $captureFormat) {
                         ForEach(CaptureFormat.allCases) { format in
                             Text(format.rawValue.uppercased()).tag(format)
                         }
                     }
+                    .accessibilityIdentifier(AccessibilityIdentifier.captureFormat.rawValue)
                     LabeledContent("Destination", value: appState.outputDirectory.path)
                 }
                 .padding(.vertical, 6)
@@ -53,16 +57,19 @@ struct DeviceCaptureView: View {
                 Spacer()
                 Button("Choose Destination…") { appState.chooseOutputDirectory() }
                     .disabled(appState.isCapturing)
+                    .accessibilityIdentifier(AccessibilityIdentifier.chooseCaptureDestination.rawValue)
                 if appState.isCapturing {
                     Button("Cancel Capture", role: .destructive) {
                         Task { await appState.cancelCapture() }
                     }
+                    .accessibilityIdentifier(AccessibilityIdentifier.cancelCapture.rawValue)
                 }
                 Button("Start Guided Capture") {
                     Task { await appState.startCapture(durationSeconds: durationSeconds, format: captureFormat) }
                 }
                     .buttonStyle(.borderedProminent)
                     .disabled(appState.selectedDevice?.readiness != .ready || appState.isCapturing)
+                    .accessibilityIdentifier(AccessibilityIdentifier.startCapture.rawValue)
             }
             CaptureStatusView(
                 progress: appState.captureProgress,
@@ -116,8 +123,10 @@ struct CaptureRecoveryView: View {
                 HStack {
                     Button("Try Capture Again", action: retry)
                         .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier(AccessibilityIdentifier.retryCapture.rawValue)
                     if recovery.kind == .deviceUnavailable {
                         Button("Refresh Devices", action: refreshDevices)
+                            .accessibilityIdentifier(AccessibilityIdentifier.recoveryRefreshDevices.rawValue)
                     }
                 }
             }
@@ -156,6 +165,7 @@ struct CaptureStatusView: View {
             }
             .padding(.vertical, 6)
         }
+        .accessibilityIdentifier(AccessibilityIdentifier.captureStatus.rawValue)
     }
 }
 
@@ -186,12 +196,16 @@ struct CaptureCompletionView: View {
                 HStack {
                     Button("Analyze") { appState.prepareCompletedCaptureForAnalysis() }
                         .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier(AccessibilityIdentifier.analyzeCompletedCapture.rawValue)
                     Button("Open File Location") { appState.revealCapture() }
+                        .accessibilityIdentifier(AccessibilityIdentifier.revealCompletedCapture.rawValue)
                     Button("Capture Again") { appState.clearCaptureCompletion() }
+                        .accessibilityIdentifier(AccessibilityIdentifier.captureAgain.rawValue)
                 }
             }
             .padding(.vertical, 8)
         }
+        .accessibilityIdentifier(AccessibilityIdentifier.captureCompletion.rawValue)
     }
 
     @ViewBuilder

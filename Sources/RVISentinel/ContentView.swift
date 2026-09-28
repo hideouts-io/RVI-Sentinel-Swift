@@ -8,6 +8,7 @@ struct ContentView: View {
             List(NavigationSection.allCases, selection: $appState.selectedSection) { section in
                 Label(section.rawValue, systemImage: section.symbolName)
                     .tag(section)
+                    .accessibilityIdentifier(section.accessibilityIdentifier)
             }
             .navigationSplitViewColumnWidth(min: 190, ideal: 215)
         } detail: {
@@ -36,6 +37,7 @@ struct ContentView: View {
                     Label("Advanced Details", systemImage: "gearshape.2")
                 }
                 .toggleStyle(.button)
+                .accessibilityIdentifier(AccessibilityIdentifier.advancedDetails.rawValue)
             }
         }
         .alert("RVI-Sentinel", isPresented: Binding(

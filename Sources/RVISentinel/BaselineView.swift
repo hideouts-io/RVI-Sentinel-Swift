@@ -21,13 +21,18 @@ struct BaselineView: View {
                 TextField("Device or investigation name", text: $scopeName)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 320)
+                    .accessibilityIdentifier(AccessibilityIdentifier.baselineScopeName.rawValue)
                 Button("Create Separate Baseline…") { appState.createBaseline(scopeName: scopeName) }
+                    .accessibilityIdentifier(AccessibilityIdentifier.createBaseline.rawValue)
                 Button("Choose Existing…") { appState.chooseBaseline() }
+                    .accessibilityIdentifier(AccessibilityIdentifier.chooseBaseline.rawValue)
                 Spacer()
                 Button("Export Copy…") { appState.exportBaselineCopy() }
                     .disabled(appState.baselineDocument == nil)
+                    .accessibilityIdentifier(AccessibilityIdentifier.exportBaseline.rawValue)
                 Button("Reset…", role: .destructive) { showingResetConfirmation = true }
                     .disabled(appState.baselineDocument == nil)
+                    .accessibilityIdentifier(AccessibilityIdentifier.resetBaseline.rawValue)
             }
             if let document = appState.baselineDocument {
                 selectedBaseline(document: document)
@@ -92,6 +97,7 @@ struct BaselineView: View {
                 Button("Add Findings to Baseline…") { showingAddConfirmation = true }
                     .buttonStyle(.borderedProminent)
                     .disabled(appState.analysisResult == nil)
+                    .accessibilityIdentifier(AccessibilityIdentifier.addBaselineFindings.rawValue)
             }
             Table(comparison.differences) {
                 TableColumn("State") { difference in
