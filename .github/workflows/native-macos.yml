@@ -1,0 +1,36 @@
+name: Native macOS
+
+on:
+  pull_request:
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - "project.yml"
+      - "RVISentinel.xcodeproj/**"
+      - ".github/workflows/native-macos.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - "project.yml"
+      - "RVISentinel.xcodeproj/**"
+      - ".github/workflows/native-macos.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test native app
+        run: >-
+          xcodebuild
+          -project RVISentinel.xcodeproj
+          -scheme RVISentinel
+          -configuration Debug
+          -derivedDataPath DerivedData
+          CODE_SIGNING_ALLOWED=NO
+          build test

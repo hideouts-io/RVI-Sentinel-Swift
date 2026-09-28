@@ -1,0 +1,473 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0EDE72EF8354DB0D96FD7CF0 /* EvidenceModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B940C2559CBC8D7D61E459A7 /* EvidenceModelTests.swift */; };
+		115A77B0D33B7B3109206406 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBF1D9AD1DED359B23829509 /* Models.swift */; };
+		47F2653E2EEE1D3D9463056C /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55B5AFD806807A546D19AC40 /* SetupView.swift */; };
+		5B611AA566E72D3315C09FA6 /* CaptureCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28CB418EB7C6E349E31E4461 /* CaptureCoordinatorTests.swift */; };
+		6B388F6B8EC16954F9A4931E /* CaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4225A3CF468BB6149F488EF4 /* CaptureCoordinator.swift */; };
+		708D641E6FD7EE3E83EFEBE2 /* DeviceCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E752ECD486FD58AE3403F50 /* DeviceCaptureView.swift */; };
+		9611D3EA8A2AD7CC4D35571A /* DeviceDiscoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DEDBF14408432BC9F12974C /* DeviceDiscoveryTests.swift */; };
+		9B4AD5169DB5BB08A127C1B5 /* RVISentinelApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4478C503966BC616A4014D05 /* RVISentinelApp.swift */; };
+		B01433A865EAD022BDD950B9 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33314A0C217F166BC5BD5CF4 /* AppState.swift */; };
+		B4D10559ED87579C19204AD6 /* InterfaceInventoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40DCABBFE6EA22A033A3629 /* InterfaceInventoryTests.swift */; };
+		B6CB983C1E5788544A0E77C3 /* InterfaceInventoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27ECFF18CEE0EA781EDFE83E /* InterfaceInventoryView.swift */; };
+		DFAEB410FCC1F0AE3C594ACB /* ProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A73E2C35B75D873CE42E182 /* ProcessRunner.swift */; };
+		E2564FDA77E3D506E80A84B5 /* InterfaceInventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18D68013F8E9905EB7B4A6F0 /* InterfaceInventory.swift */; };
+		E657459C016F0131D5D2CB66 /* SetupChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D88C34D632EE2DF822D77EE /* SetupChecker.swift */; };
+		E7528C1C1E46DC65C723E4B2 /* DeviceDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 659D79CB0BDAA006408733B9 /* DeviceDiscovery.swift */; };
+		F6A3BAAE08EB92E9A7FD56C6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4F8F104268625F9CC8E111 /* ContentView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F94014C87D079DA82A95385A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4BFAAD01C2D3B3BD026DD347 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 387832DEB266E9BD8330A633;
+			remoteInfo = RVISentinel;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0D88C34D632EE2DF822D77EE /* SetupChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupChecker.swift; sourceTree = "<group>"; };
+		18D68013F8E9905EB7B4A6F0 /* InterfaceInventory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfaceInventory.swift; sourceTree = "<group>"; };
+		1E752ECD486FD58AE3403F50 /* DeviceCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCaptureView.swift; sourceTree = "<group>"; };
+		27ECFF18CEE0EA781EDFE83E /* InterfaceInventoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfaceInventoryView.swift; sourceTree = "<group>"; };
+		28CB418EB7C6E349E31E4461 /* CaptureCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCoordinatorTests.swift; sourceTree = "<group>"; };
+		33314A0C217F166BC5BD5CF4 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		3405CBF36399E228A7608008 /* RVISentinelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RVISentinelTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3DEDBF14408432BC9F12974C /* DeviceDiscoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscoveryTests.swift; sourceTree = "<group>"; };
+		4225A3CF468BB6149F488EF4 /* CaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCoordinator.swift; sourceTree = "<group>"; };
+		4478C503966BC616A4014D05 /* RVISentinelApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RVISentinelApp.swift; sourceTree = "<group>"; };
+		55B5AFD806807A546D19AC40 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
+		659D79CB0BDAA006408733B9 /* DeviceDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscovery.swift; sourceTree = "<group>"; };
+		8A73E2C35B75D873CE42E182 /* ProcessRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunner.swift; sourceTree = "<group>"; };
+		A40DCABBFE6EA22A033A3629 /* InterfaceInventoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfaceInventoryTests.swift; sourceTree = "<group>"; };
+		B940C2559CBC8D7D61E459A7 /* EvidenceModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceModelTests.swift; sourceTree = "<group>"; };
+		B9C97B324FBAB8B06FCD86FC /* RVISentinel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RVISentinel.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BBF1D9AD1DED359B23829509 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		FB4F8F104268625F9CC8E111 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1B0CD4C468C494D8A1390DCE = {
+			isa = PBXGroup;
+			children = (
+				73187BCDD52A77837834140A /* Sources */,
+				E0F5A96D203ADFDD4AFAB9B4 /* Tests */,
+				5054F7F4E2E1C67C20C5D7CF /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		4D60A5A55515CCD5854C65CE /* RVISentinel */ = {
+			isa = PBXGroup;
+			children = (
+				33314A0C217F166BC5BD5CF4 /* AppState.swift */,
+				4225A3CF468BB6149F488EF4 /* CaptureCoordinator.swift */,
+				FB4F8F104268625F9CC8E111 /* ContentView.swift */,
+				1E752ECD486FD58AE3403F50 /* DeviceCaptureView.swift */,
+				659D79CB0BDAA006408733B9 /* DeviceDiscovery.swift */,
+				18D68013F8E9905EB7B4A6F0 /* InterfaceInventory.swift */,
+				27ECFF18CEE0EA781EDFE83E /* InterfaceInventoryView.swift */,
+				BBF1D9AD1DED359B23829509 /* Models.swift */,
+				8A73E2C35B75D873CE42E182 /* ProcessRunner.swift */,
+				4478C503966BC616A4014D05 /* RVISentinelApp.swift */,
+				0D88C34D632EE2DF822D77EE /* SetupChecker.swift */,
+				55B5AFD806807A546D19AC40 /* SetupView.swift */,
+			);
+			path = RVISentinel;
+			sourceTree = "<group>";
+		};
+		5054F7F4E2E1C67C20C5D7CF /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B9C97B324FBAB8B06FCD86FC /* RVISentinel.app */,
+				3405CBF36399E228A7608008 /* RVISentinelTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		73187BCDD52A77837834140A /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				4D60A5A55515CCD5854C65CE /* RVISentinel */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		D6CF1868024D6F4ED668E3D2 /* RVISentinelTests */ = {
+			isa = PBXGroup;
+			children = (
+				28CB418EB7C6E349E31E4461 /* CaptureCoordinatorTests.swift */,
+				3DEDBF14408432BC9F12974C /* DeviceDiscoveryTests.swift */,
+				B940C2559CBC8D7D61E459A7 /* EvidenceModelTests.swift */,
+				A40DCABBFE6EA22A033A3629 /* InterfaceInventoryTests.swift */,
+			);
+			path = RVISentinelTests;
+			sourceTree = "<group>";
+		};
+		E0F5A96D203ADFDD4AFAB9B4 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				D6CF1868024D6F4ED668E3D2 /* RVISentinelTests */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		387832DEB266E9BD8330A633 /* RVISentinel */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DD89FD86F3C545CD3961CDFB /* Build configuration list for PBXNativeTarget "RVISentinel" */;
+			buildPhases = (
+				4855B724B145E3EBA2B9A907 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RVISentinel;
+			packageProductDependencies = (
+			);
+			productName = RVISentinel;
+			productReference = B9C97B324FBAB8B06FCD86FC /* RVISentinel.app */;
+			productType = "com.apple.product-type.application";
+		};
+		475CBF72B8DF2E5055191870 /* RVISentinelTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AD8DB5219B74BB9B4FC2170F /* Build configuration list for PBXNativeTarget "RVISentinelTests" */;
+			buildPhases = (
+				A0B1CA5F068EF639E935C6A9 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E467C3A7E7CCED7AF5ED532B /* PBXTargetDependency */,
+			);
+			name = RVISentinelTests;
+			packageProductDependencies = (
+			);
+			productName = RVISentinelTests;
+			productReference = 3405CBF36399E228A7608008 /* RVISentinelTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4BFAAD01C2D3B3BD026DD347 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					387832DEB266E9BD8330A633 = {
+						ProvisioningStyle = Automatic;
+					};
+					475CBF72B8DF2E5055191870 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 81E8FC8671EA4D6A0E5B51F3 /* Build configuration list for PBXProject "RVISentinel" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1B0CD4C468C494D8A1390DCE;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 5054F7F4E2E1C67C20C5D7CF /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				387832DEB266E9BD8330A633 /* RVISentinel */,
+				475CBF72B8DF2E5055191870 /* RVISentinelTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4855B724B145E3EBA2B9A907 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B01433A865EAD022BDD950B9 /* AppState.swift in Sources */,
+				6B388F6B8EC16954F9A4931E /* CaptureCoordinator.swift in Sources */,
+				F6A3BAAE08EB92E9A7FD56C6 /* ContentView.swift in Sources */,
+				708D641E6FD7EE3E83EFEBE2 /* DeviceCaptureView.swift in Sources */,
+				E7528C1C1E46DC65C723E4B2 /* DeviceDiscovery.swift in Sources */,
+				E2564FDA77E3D506E80A84B5 /* InterfaceInventory.swift in Sources */,
+				B6CB983C1E5788544A0E77C3 /* InterfaceInventoryView.swift in Sources */,
+				115A77B0D33B7B3109206406 /* Models.swift in Sources */,
+				DFAEB410FCC1F0AE3C594ACB /* ProcessRunner.swift in Sources */,
+				9B4AD5169DB5BB08A127C1B5 /* RVISentinelApp.swift in Sources */,
+				E657459C016F0131D5D2CB66 /* SetupChecker.swift in Sources */,
+				47F2653E2EEE1D3D9463056C /* SetupView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A0B1CA5F068EF639E935C6A9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5B611AA566E72D3315C09FA6 /* CaptureCoordinatorTests.swift in Sources */,
+				9611D3EA8A2AD7CC4D35571A /* DeviceDiscoveryTests.swift in Sources */,
+				0EDE72EF8354DB0D96FD7CF0 /* EvidenceModelTests.swift in Sources */,
+				B4D10559ED87579C19204AD6 /* InterfaceInventoryTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		E467C3A7E7CCED7AF5ED532B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 387832DEB266E9BD8330A633 /* RVISentinel */;
+			targetProxy = F94014C87D079DA82A95385A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1CD51E700CB23DC923FB07CD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		3AD18A1E0619D5FCA31382BD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		40F29B04836713ECC9ADC975 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.hideouts.RVISentinelTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RVI-Sentinel.app/Contents/MacOS/RVI-Sentinel";
+			};
+			name = Release;
+		};
+		53F97CD3E820C7245DAB7192 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "RVI-Sentinel";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright 2026 hideouts.io";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.hideouts.RVISentinel;
+				PRODUCT_NAME = "RVI-Sentinel";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		88498FB60C82D42A2B0F36CF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.hideouts.RVISentinelTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RVI-Sentinel.app/Contents/MacOS/RVI-Sentinel";
+			};
+			name = Debug;
+		};
+		8998C79DFF963D9B22FF4482 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "RVI-Sentinel";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright 2026 hideouts.io";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.hideouts.RVISentinel;
+				PRODUCT_NAME = "RVI-Sentinel";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		81E8FC8671EA4D6A0E5B51F3 /* Build configuration list for PBXProject "RVISentinel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1CD51E700CB23DC923FB07CD /* Debug */,
+				3AD18A1E0619D5FCA31382BD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AD8DB5219B74BB9B4FC2170F /* Build configuration list for PBXNativeTarget "RVISentinelTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				88498FB60C82D42A2B0F36CF /* Debug */,
+				40F29B04836713ECC9ADC975 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DD89FD86F3C545CD3961CDFB /* Build configuration list for PBXNativeTarget "RVISentinel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				53F97CD3E820C7245DAB7192 /* Debug */,
+				8998C79DFF963D9B22FF4482 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 4BFAAD01C2D3B3BD026DD347 /* Project object */;
+}

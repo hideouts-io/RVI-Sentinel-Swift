@@ -1,0 +1,43 @@
+name: RVISentinel
+options:
+  bundleIdPrefix: io.hideouts
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_HARDENED_RUNTIME: true
+    CODE_SIGN_STYLE: Automatic
+targets:
+  RVISentinel:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/RVISentinel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.hideouts.RVISentinel
+        PRODUCT_NAME: RVI-Sentinel
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_CFBundleDisplayName: RVI-Sentinel
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_NSHumanReadableCopyright: Copyright 2026 hideouts.io
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+    scheme:
+      testTargets:
+        - RVISentinelTests
+  RVISentinelTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/RVISentinelTests
+    dependencies:
+      - target: RVISentinel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.hideouts.RVISentinelTests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/RVI-Sentinel.app/Contents/MacOS/RVI-Sentinel"
+        BUNDLE_LOADER: "$(TEST_HOST)"

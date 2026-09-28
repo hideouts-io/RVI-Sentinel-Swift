@@ -1,0 +1,21 @@
+# Xcode and Swift build state
+DerivedData/
+.build/
+*.xcuserstate
+xcuserdata/
+
+# Private capture evidence and local analysis state
+captures/*
+!captures/.gitkeep
+exports/*
+!exports/.gitkeep
+baselines/*
+!baselines/.gitkeep
+*.pcap
+*.pcapng
+*.cap
+*.mmdb
+
+# Local application state
+*.log
+.DS_Store
