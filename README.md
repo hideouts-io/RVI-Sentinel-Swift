@@ -374,7 +374,7 @@ xcodebuild \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-Quit any running copy of RVI-Sentinel before starting the tests. The application enforces a single instance, so an already-running build with the same bundle identifier will prevent the XCTest host from launching.
+The XCTest host is explicitly excluded from the application's single-instance enforcement, so the suite can run while the normal app is open. Ordinary launches still activate the existing app instead of opening a duplicate instance.
 
 The standard suite covers typed parsing, TShark integration, device discovery, simulator exclusion, readiness checks, capture command construction and finalization, format validation, interface evidence, hostname provenance, protected baselines, local exports, and diagnostic redaction. The physical workflow test is opt-in because it requires an authorized local capture:
 

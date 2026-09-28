@@ -21,6 +21,7 @@ struct RVISentinelApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !isXCTestProcess(environment: ProcessInfo.processInfo.environment) else { return }
         guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return }
         let otherInstances = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
             .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
@@ -31,5 +32,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+}
+
+func isXCTestProcess(environment: [String: String]) -> Bool {
+    let markerNames = ["XCTestConfigurationFilePath", "XCInjectBundleInto"]
+    return markerNames.contains { markerName in
+        guard let marker = environment[markerName] else { return false }
+        return !marker.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
