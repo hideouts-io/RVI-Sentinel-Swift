@@ -1,162 +1,470 @@
-# Native macOS RVI-Sentinel remake specification
+# RVI-Sentinel for macOS
 
-RVI-Sentinel-Swift is a separate, macOS-only native remake of [RVI-Sentinel](https://github.com/hideouts-io/RVI-Sentinel). The original cross-platform Python application remains intact and will not be removed, replaced, or retired. The parity matrix uses it as the functional reference while this edition develops its own verified Swift implementation.
+### Native SwiftUI iPhone/iPad packet capture, evidence review, and persistent network baselining
 
-## Current Python feature inventory
+<p align="center">
+  <img src="assets/rvi-sentinel-logo.png" width="220" alt="RVI-Sentinel iOS packet-capture logo">
+</p>
 
-The repository audit found these user-visible and safety-critical behaviors:
+![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-000000?logo=apple&logoColor=white)
+![Language](https://img.shields.io/badge/language-Swift%206-F05138?logo=swift&logoColor=white)
+![Interface](https://img.shields.io/badge/interface-native%20SwiftUI-0969da)
+![Capture](https://img.shields.io/badge/capture-PCAP%20%7C%20PCAPNG-8250df)
+![Analysis](https://img.shields.io/badge/analysis-tshark-1a7f37)
+![License](https://img.shields.io/badge/license-MIT-2da44e)
 
-- Apple CoreDevice and `xctrace` physical-device discovery with simulator exclusion, USB/pairing/boot readiness, and hidden device identifiers.
-- A guided capture dialog for device, duration, PCAP/PCAPNG format, destination, and optional analysis.
-- macOS `rvictl` creation, deterministic RVI identification, narrow native administrator authorization for `tcpdump`, five-second packet-arrival preflight, bounded capture, SIGINT flush, output validation, cancellation, and RVI cleanup.
-- Linux and Windows capture through the separately installed and ignored `gh2o/rvi_capture` backend.
-- Setup checks for trust, USB, capture backend, `tshark`, destination permissions, and disk space.
-- A persistent completion card with packet count, size, actual duration, location, analysis, reveal, and repeat actions.
-- PCAP/PCAPNG analysis through `tshark` for endpoints, IPv4/IPv6, TCP/UDP ports, DNS, TLS SNI, protocol frequency, QUIC-style traffic, and DNS entropy.
-- Endpoint PTR enrichment, address-scope classification, optional local MaxMind-compatible GeoIP, and service/port explanations.
-- Read-only analysis by default, suggested per-device or per-investigation baselines, explicit baseline updates, and new-versus-known findings.
-- JSON reports and CSV exports, plain-language interpretation, drag/drop, advanced command/log details, redacted diagnostics, single-instance locking, and private artifact ignore rules.
-- Deterministic analyzer, capture-contract, enrichment, model, and headless GUI tests.
+> **Scope:** RVI-Sentinel for macOS is a defensive, local-first application for authorized iPhone and iPad packet capture and analysis. It guides a user through Apple's Remote Virtual Interface workflow, validates the saved capture, explains observable network metadata, and keeps persistent baselines under explicit user control.
 
-## Proposed Swift architecture
+This is a separate native macOS edition. It does not replace the cross-platform [Python RVI-Sentinel](https://github.com/hideouts-io/RVI-Sentinel).
 
-| Component | Responsibility | Boundary |
-|---|---|---|
-| SwiftUI presentation | Guided workflow, accessibility, completion and interpretation views | No shell construction or packet inference |
-| Core models | Typed devices, interfaces, evidence provenance, capture phases, findings, coverage | No I/O |
-| Device discovery | Decode Apple `devicectl` JSON and exclude simulators | Apple CoreDevice evidence only |
-| Setup checker | Exact readiness checks and corrective actions | Read-only except an explicit destination write test in a later stage |
-| Interface inventory | Enumerate host-visible interfaces and classify ownership | Never infers an internal iOS route from RVI |
-| Capture coordinator | Authorization, RVI lifecycle, packet preflight, timing, flush, validation, cleanup | One selected source; no silent interface expansion |
-| Decoder adapters | Typed `tshark` field extraction and extensible protocol decoders | Decoder coverage is recorded per report |
-| Enrichment | Optional local GeoIP/ASN and opt-in active resolution | Kept distinct from captured evidence |
-| Baseline store | Read-only comparison, preview, explicit update, recoverable reset | Separate per device or investigation |
-| Export service | JSON, CSV, HTML, optional PDF, hashes, provenance, coverage | Never rewrites the source capture |
+---
 
-Structured concurrency is used for external processes and long-running work. Pure parsing and classification functions are isolated from system connectors so synthetic fixtures can exercise behavior without a phone.
+## Table of Contents
 
-## Capture and privilege model
+- [Overview](#overview)
+- [Native App Screenshots](#native-app-screenshots)
+- [What It Does](#what-it-does)
+- [Architecture](#architecture)
+- [Requirements](#requirements)
+- [Build and Run](#build-and-run)
+- [Guided iPhone/iPad Capture](#guided-iphoneipad-capture)
+- [Analyze an Existing Capture](#analyze-an-existing-capture)
+- [Analysis and Protocol Coverage](#analysis-and-protocol-coverage)
+- [Hostname Resolution and Provenance](#hostname-resolution-and-provenance)
+- [iOS Interface Evidence](#ios-interface-evidence)
+- [Protected Baselines](#protected-baselines)
+- [Exports and Diagnostics](#exports-and-diagnostics)
+- [Testing](#testing)
+- [Repository Structure](#repository-structure)
+- [Privacy and Responsible Use](#privacy-and-responsible-use)
+- [Evidence Boundaries](#evidence-boundaries)
+- [Relationship to the Python Edition](#relationship-to-the-python-edition)
+- [License](#license)
 
-The native capture coordinator implements this sequence:
+---
 
-1. Re-check that the selected physical device is booted, paired, visible, and attached over USB.
-2. Resolve `/Library/Apple/usr/bin/rvictl` and `/usr/sbin/tcpdump` explicitly.
-3. Ask macOS for administrator authorization for only the bounded `tcpdump` operation; never request, read, or store a password.
-4. Create an RVI only after readiness is reconfirmed, and identify the newly created interface from before/after inventories.
-5. Capture one packet during a five-second preflight. A quiet phone yields a retryable no-traffic state; a disconnected phone yields a separate failure.
-6. Start the visible countdown only after a packet is observed.
-7. End `tcpdump` with SIGINT so buffered data is flushed, validate the requested file header and readable packets, and compute SHA-256.
-8. Remove the RVI on success, cancellation, failure, termination, or disconnect and verify removal.
-9. Preserve and report a valid saved capture as partial success if later cleanup fails.
+## Overview
 
-The Swift capture path is enabled, but physical-device verification remains a release gate. Automated tests cover command construction, cancellation markers, SIGINT finalization, headers, and `capinfos` parsing; a real authorized iPhone/iPad matrix is still required before release qualification.
+RVI-Sentinel turns Apple's command-line RVI capture process into a guided native workflow for people who do not live in Terminal. The app checks the Mac and connected device, requests macOS authorization only for the bounded packet-capture operation, verifies that packets are actually arriving, and makes capture completion unmistakable.
 
-## Packet decoding and attribution
+Capture and analysis remain separate:
 
-The native decoder uses current `tshark` as an explicit external dependency because it supplies maintained protocol dissectors. The Swift adapter reads the installed field catalog, requests only supported fields, validates streamed rows, retains unknown traffic as endpoint/port/timing/volume metadata, and records unsupported fields as coverage—not as negative evidence. Protocol-specific reducers remain pure functions over typed decoded packets.
+> A PCAP records one authorized session. Analysis explains what was observable. A baseline shows what changed after review.
 
-The Protocol Details view preserves counted field evidence for Ethernet/VLAN, ARP, IPv4/IPv6 and ICMP, TCP/UDP analysis, DNS-family naming, DHCP, TLS/certificates, HTTP/2, QUIC, STUN/TURN, DTLS, RTP/RTCP, SMB, SSH, NTP, ESP, and WireGuard when the installed TShark exposes those fields. Distinct values are bounded per field to protect memory on large captures; the report adds an explicit omission row when that limit is reached instead of silently presenting the list as complete.
+The analysis workspace accepts `.pcap`, `.pcapng`, and `.cap` files from any authorized source. A connected iPhone or iPad is required for live RVI capture, but not for reviewing an existing capture.
 
-Hostname observations are separate records keyed by hostname, related address, and provenance. Captured DNS, mDNS, DNS-SD, TLS SNI, HTTP Host, HTTP/2 authority, QUIC/HTTP/3 handshake evidence, certificate identities, and captured PTR records remain distinguishable. Active reverse lookup is disabled by default and will require explicit authorization because it generates traffic and discloses investigated addresses to the configured resolver.
+### Direct capability vs. interpretation
 
-Ordinary PCAP and RVI traffic does not inherently contain an iOS process name. The native app displays **Process not observable from this capture** unless a supported flow-ownership API, Network Extension record, PKTAP metadata, or authorized device diagnostic provides direct ownership evidence. Port, hostname, and vendor guesses are prohibited.
+| Type | Meaning |
+|---|---|
+| **Direct capability** | Discovers physical Apple mobile devices through CoreDevice and excludes simulators. |
+| **Direct capability** | Creates a temporary RVI, captures with macOS `tcpdump`, validates with `capinfos`, and removes the RVI. |
+| **Direct capability** | Streams supported fields from `tshark` into typed endpoint, hostname, protocol, port, and coverage models. |
+| **Direct capability** | Exports local JSON, CSV bundles, and HTML reports with hashes and provenance. |
+| **Interpretation boundary** | A new endpoint, hostname, protocol, or port is a change to investigate—not proof of malicious behavior. |
+| **Visibility boundary** | RVI does not defeat TLS, QUIC, VPNs, Private Relay, encrypted DNS, ECH, or application-layer encryption. |
 
-## Interface visibility limitations
+---
 
-`getifaddrs` proves which interfaces are visible to the Mac at inventory time. Names such as `en0`, `lo0`, `awdl0`, `llw0`, `bridge`, `utun`, `gif`, `stf`, `pdp_ip`, and `rvi` can be described, but name-based classification is labeled as such. An RVI packet does not prove that the iPhone used internal `en0`, `pdp_ip0`, or `utun`. That claim requires packet or device metadata that explicitly identifies the internal source interface.
+## Native App Screenshots
 
-## Feature parity matrix
+The screenshots below show privacy-safe application states. They contain no private capture, endpoint inventory, hostname evidence, device identifier, baseline, or local investigation path.
 
-Status meanings: **Implemented** is buildable native behavior with automated tests; **Scaffolded** is explicit UI/model structure without a production implementation; **Python reference** means that capability currently exists only in the separate Python edition.
+### Guided workflow overview
 
-| Capability | Python | Native status | Verification required |
-|---|---:|---:|---|
-| Single application instance | Yes | Implemented | Two-launch UI check |
-| Plain-language opening workflow | Yes | Implemented | Accessibility/UI review |
-| Physical device discovery | Yes | Implemented | Synthetic parser + physical device |
-| Simulator exclusion | Yes | Implemented | Synthetic parser |
-| USB, pairing, boot readiness | Yes | Implemented | Synthetic parser + physical device |
-| Hidden UDID / advanced details | Yes | Implemented | UI review |
-| Setup checks and exact fixes | Partial | Implemented for current native checks | Physical device and broken-state matrix |
-| rpmuxd and orphaned-RVI checks | No/partial | Implemented | Host validation |
-| Host interface inventory | No | Implemented | Live host inventory |
-| Host/RVI/VPN ownership boundary | No | Implemented | Classification tests + UI review |
-| MTU and network-service mapping | No | Scaffolded | SystemConfiguration implementation |
-| Guided RVI capture | Yes | Implemented; hardware verification pending | Real-device lifecycle tests |
-| Host/specific/multi-interface capture | No | Scaffolded | Privilege and evidence-boundary design |
-| Live packet/byte progress | Partial | Implemented byte/time phases; live packet count pending | Real capture |
-| Retryable packet preflight | Yes | Implemented; targeted recovery UI pending | Idle-device and disconnect tests |
-| SIGINT flush and file validation | Yes | Implemented | PCAP and PCAPNG hardware tests |
-| Partial-success cleanup semantics | Yes | Implemented | Forced cleanup failure |
-| Completion card | Yes | Implemented | UI and real capture |
-| Core endpoint/DNS/TLS/port analysis | Yes | Implemented native streaming core | Synthetic capture parity and large capture |
-| Comprehensive protocol decoders | No | Typed detail extraction covers supported Ethernet, IP, transport, naming, handshake, web, NAT traversal, media, file-sharing, clock, and tunnel fields; complete fixtures remain pending | Per-protocol synthetic captures |
-| Unknown traffic representation | No | Implemented at flow/endpoint/port/size level | Synthetic unknown-IP-protocol fixture |
-| Hostname provenance | Partial | Implemented for captured DNS, PTR, TLS SNI, HTTP Host, and HTTP/2 authority | Decoder fixtures and UI |
-| Active resolution disabled by default | No | Implemented for native analysis; opt-in enrichment pending | Consent UI and network test |
-| Process attribution evidence boundary | No | Implemented typed unavailable state in endpoint results | PKTAP and ordinary RVI fixtures |
-| Local GeoIP | Yes | Python reference | Licensed local database fixture |
-| Read-only baseline default | Yes | Implemented with separate local JSON baselines | Store and UI tests |
-| Explicit baseline preview/update | Yes | Implemented with preview, backup, reset, and export copy | Physical workflow review |
-| JSON and CSV export | Yes | Implemented with typed JSON and CSV hash manifest | Larger golden-schema corpus |
-| HTML, PDF, hashes, coverage export | No/partial | HTML, hashes, provenance, and coverage implemented; PDF pending | Rendered HTML and PDF implementation |
-| Redacted diagnostics | Yes | Implemented with preview, clipboard copy, and local JSON save | Privacy corpus and UI review |
-| Dark/light/accessibility | Partial | Native system behavior | UI automation and VoiceOver review |
+![RVI-Sentinel native macOS overview](evidence/rvi-sentinel-swift-overview.png)
 
-## Dependencies and licensing
+The Overview presents capture as a six-step workflow and states the process/interface evidence boundary before analysis begins.
 
-| Dependency | Purpose | Distribution | License/terms action |
-|---|---|---|---|
-| Swift, SwiftUI, AppKit, CoreDevice command-line tools | Native app and Apple device discovery | macOS/Xcode | Apple platform terms; do not redistribute private frameworks |
-| `rvictl` | Apple RVI lifecycle | Apple device-support installation | Resolve at runtime; do not bundle |
-| `tcpdump` | Packet capture | macOS | Resolve at runtime; show version in provenance |
-| Wireshark `tshark` | Packet decoding | User-installed Wireshark | GPL-2.0-or-later external executable; do not copy into the app without a distribution review |
-| Optional MaxMind-compatible `.mmdb` | Offline location/ASN enrichment | User-supplied local database | Record database name/version/license; never commit it |
-| XcodeGen | Reproducible project generation during development | Development only | MIT; generated `.xcodeproj` is checked in |
+### Review-before-update baselines
 
-The native app target has no third-party linked runtime package in the first milestone.
+![RVI-Sentinel protected baseline workspace](evidence/rvi-sentinel-swift-baselines.png)
 
-## Threat and privacy model
+Analysis never silently changes a baseline. Each device or investigation can use a separate local baseline, and reviewed findings are added only through an explicit action.
 
-Protected assets include capture contents, endpoint and hostname inventories, device identifiers, private paths, baselines, reports, authorization state, and capture provenance. Relevant threats include accidental Git publication, unintended capture of unrelated interfaces, privilege expansion, command injection through paths or identifiers, active lookup disclosure, stale RVI interfaces, corrupted/truncated output, and conclusions that overstate evidence.
+### Redacted diagnostics
 
-Controls are local-only storage, ignored evidence extensions/directories, structured arguments, fixed executable paths, one selected source, bounded capture, native authorization, preflight and postflight validation, RVI cleanup verification, SHA-256 provenance, hidden identifiers, redacted diagnostics, opt-in active enrichment, read-only baseline comparison, and explicit coverage/limitation labels. Packet data, IPs, hostnames, UDIDs, diagnostics, baselines, and reports must never leave the Mac without a separate user-authorized export or upload action.
+![RVI-Sentinel redacted diagnostics workspace](evidence/rvi-sentinel-swift-diagnostics.png)
 
-## Milestones
+Diagnostics are generated locally and deliberately exclude packet data, addresses, hostnames, device names and identifiers, credentials, and private file paths.
 
-1. **Foundation:** native Xcode project, workflow UI, CoreDevice discovery, setup checks, interface inventory, evidence contracts, and tests.
-2. **Capture lifecycle:** authorization, RVI creation, packet preflight/retry, exact timing, progress, SIGINT flush, validation, hash, cleanup, completion card, cancellation, disconnect handling, and app-termination recovery.
-3. **Analysis parity:** typed TShark adapter, Python report parity, endpoint/port explanations, hostname provenance, local enrichment, and coverage reporting.
-4. **Baseline and exports:** New/Known/Changed/Removed comparison, review-before-update, recoverable reset, JSON/CSV/HTML, hashes, provenance, and limitations are implemented; optional PDF remains pending.
-5. **Extended protocols and capture modes:** protocol fixture matrix, host/specific/multi-interface evidence files, and time alignment without silent capture expansion.
-6. **Release qualification:** accessibility, dark/light mode, large/corrupt capture behavior, memory profiling, signed/notarized build, screenshots, and a real-device test matrix. The Python edition continues as a separate application.
+---
 
-## Risks
+## What It Does
 
-- Apple command output and RVI behavior can change between macOS/Xcode/device OS releases.
-- Authorization and process lifecycle bugs can leave a capture running or an RVI orphaned.
-- TShark fields vary by version and protocol visibility; absent fields must not be treated as absent behavior.
-- Large captures can exhaust memory if decoding is not streamed.
-- Active enrichment can create new evidence and disclose investigated addresses.
-- iOS process and internal-interface attribution are normally unavailable from RVI alone.
-- A valid capture can coexist with a cleanup failure; collapsing both into one status can destroy useful evidence or mislead the user.
+- Provides a native SwiftUI workflow for setup, device selection, capture, analysis, baselining, export, and diagnostics.
+- Detects physical, booted, paired iPhones and iPads connected over USB; simulators are excluded.
+- Checks device visibility, USB transport, pairing, Apple developer support, `rvictl`, `rpmuxd`, `tcpdump`, `tshark`, `capinfos`, output permissions, disk space, required macOS tools, and orphaned RVI state.
+- Captures one selected device for a bounded duration from 5 seconds to 60 minutes.
+- Supports PCAP and PCAPNG output without overwriting existing evidence.
+- Starts the visible timer only after administrator authorization and a successful five-second live-packet preflight.
+- Distinguishes no observed traffic from a disconnected or untrusted device.
+- Validates the saved format, readable packet content, packet count, file size, packet-span duration, and SHA-256 hash.
+- Shows an explicit completion card with **Analyze**, **Open File Location**, and **Capture Again** actions.
+- Analyzes IPv4/IPv6 endpoints, hostnames, protocols, detailed fields, TCP/UDP ports, packet counts, byte counts, timing, and decoder coverage.
+- Performs IPv4 and IPv6 hostname resolution and labels actively resolved names as post-capture enrichment.
+- Shows capture-reported iOS interface labels while excluding the temporary Mac-side `rvi` interface.
+- Keeps baseline comparison read-only until **Add Findings to Baseline** is chosen.
+- Creates timestamped backups before baseline update or reset.
+- Produces local JSON, CSV, and HTML reports and privacy-redacted diagnostics.
+- Keeps full device identifiers and other expert detail behind **Advanced Details**.
 
-## Acceptance criteria
+---
 
-The native macOS remake is release-ready only when all required parity rows are implemented; automated tests cover discovery, readiness, authorization, RVI lifecycle, preflight, timing, cancellation, disconnect, flush, validation, baselines, provenance, redaction, accessibility, corrupt inputs, and large captures; signed builds pass on every supported macOS release; real authorized iPhone and iPad captures validate PCAP and PCAPNG outputs; privacy review confirms no implicit uploads or active lookups; and the UI never overstates process, hostname, protocol, or interface evidence. Reaching these criteria does not remove or replace the Python edition.
+## Architecture
 
-## Build and test
+```mermaid
+flowchart TB
+    Device[iPhone or iPad]
+    Discovery[CoreDevice discovery and readiness]
+    Setup[Setup checks with corrective actions]
+    RVI[Apple rvictl temporary RVI]
+    Capture[Authorized bounded tcpdump capture]
+    Evidence[Validated PCAP or PCAPNG plus SHA-256]
+    Decoder[tshark supported-field stream]
+    Analysis[Typed endpoint, hostname, protocol, port, and coverage models]
+    Interfaces[Capture-reported iOS interface labels]
+    Baseline[Read-only comparison and explicit update]
+    Export[Local JSON, CSV, HTML, and redacted diagnostics]
 
-Generate the checked-in Xcode project after changing `project.yml`:
-
-```bash
-xcodegen generate
+    Device --> Discovery --> Setup --> RVI --> Capture --> Evidence
+    Evidence --> Decoder --> Analysis
+    Analysis --> Interfaces
+    Analysis --> Baseline
+    Analysis --> Export
 ```
 
-Build and test without signing:
+<details>
+<summary>Text-only architecture</summary>
 
-```bash
-xcodebuild -project RVISentinel.xcodeproj -scheme RVISentinel -configuration Debug -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build test
+```text
+iPhone / iPad over USB
+        |
+        v
+CoreDevice readiness checks
+        |
+        v
+rvictl -> temporary rviN -> authorized tcpdump
+        |
+        v
+validated PCAP / PCAPNG + SHA-256
+        |
+        v
+tshark supported-field stream
+        |
+        +--> endpoints and active IPv4/IPv6 names
+        +--> captured hostname provenance
+        +--> protocols, detailed fields, and ports
+        +--> observed iOS interface labels
+        +--> explicit baseline review/update
+        +--> local JSON / CSV / HTML exports
 ```
 
-The generated app is under `DerivedData/Build/Products/Debug/RVI-Sentinel.app`. Do not add real captures, reports, baselines, device identifiers, or local GeoIP databases to this directory or to Git.
+</details>
+
+The source separates pure parsing and evidence classification from connectors that invoke macOS and Wireshark tools. Unsupported TShark fields are recorded as coverage gaps instead of being interpreted as proof that an activity did not occur.
+
+---
+
+## Requirements
+
+| Requirement | Purpose |
+|---|---|
+| macOS 14 or later | Native SwiftUI application target |
+| Xcode with Swift 6 support | Build, CoreDevice command access, and Apple device support |
+| Physical iPhone or iPad | Live RVI capture; simulators are intentionally excluded |
+| Data-capable USB cable and trusted pairing | Device discovery and capture readiness |
+| `/Library/Apple/usr/bin/rvictl` | Apple Remote Virtual Interface lifecycle |
+| macOS `/usr/sbin/tcpdump` | Local packet capture |
+| Wireshark `tshark` and `capinfos` | Packet decoding and exact capture statistics |
+| Administrator approval | Requested by macOS only for the narrow capture command |
+
+Install current Wireshark from [wireshark.org](https://www.wireshark.org/download.html). The app resolves these external tools at runtime and does not bundle or redistribute them.
+
+---
+
+## Build and Run
+
+Clone the native repository:
+
+```bash
+git clone https://github.com/hideouts-io/RVI-Sentinel-Swift.git
+cd RVI-Sentinel-Swift
+```
+
+Build from Terminal without a signing identity:
+
+```bash
+xcodebuild \
+  -project RVISentinel.xcodeproj \
+  -scheme RVISentinel \
+  -configuration Debug \
+  -derivedDataPath DerivedData \
+  CODE_SIGNING_ALLOWED=NO \
+  build
+```
+
+Open the built application:
+
+```bash
+open DerivedData/Build/Products/Debug/RVI-Sentinel.app
+```
+
+You can also open `RVISentinel.xcodeproj` in Xcode and run the `RVISentinel` scheme. The checked-in Xcode project is ready to build; XcodeGen is needed only when regenerating it after editing `project.yml`.
+
+---
+
+## Guided iPhone/iPad Capture
+
+1. Connect the iPhone or iPad directly with a data-capable USB cable.
+2. Unlock the device, approve the accessory connection, and choose **Trust** if prompted.
+3. Open **Check Setup** and run the readiness checks. Every failure includes a specific corrective action and evidence source.
+4. Open **Device & Capture**, select a capture-ready physical device, choose a duration and PCAP/PCAPNG format, and choose a local destination.
+5. Start the guided capture and approve the native macOS administrator dialog. RVI-Sentinel never asks for, reads, stores, or transmits the password.
+6. During the five-second traffic check, open a webpage or another network activity on the phone if it is idle. The capture timer does not begin until a live packet is verified.
+7. At the requested deadline, the app asks the capture process to flush, waits for finalization, bounds any process that remains alive, and validates the result.
+8. Review the completion card: packet count, file size, actual packet span, saved location, RVI source, cleanup state, and SHA-256 are shown before the next action.
+
+The temporary RVI is cleaned up after success, cancellation, or failure. If the capture is valid but RVI cleanup needs attention, the app preserves the evidence and reports partial success rather than discarding the capture.
+
+---
+
+## Analyze an Existing Capture
+
+Open **Analysis**, choose an authorized `.pcap`, `.pcapng`, or `.cap` file, and select **Analyze Capture**. The source file is read-only: analysis does not rewrite the capture or silently update a baseline.
+
+The result workspace contains:
+
+- **Summary:** packet and byte totals, timestamps, capture SHA-256, decoder version, interface metadata, and active-resolution state.
+- **Endpoints:** IPv4/IPv6 addresses, scope classification, source/destination observations, traffic totals, protocols, ports, process-attribution boundary, resolved names, and name provenance.
+- **Hostnames:** captured and actively resolved names with related address, first/last observation, confidence, and evidence source.
+- **Protocols:** packet and byte counts by identified protocol.
+- **Protocol Details:** typed TShark field values, occurrence counts, and evidence boundaries.
+- **Ports:** TCP/UDP observations with conventional service labels and an explicit reminder that a port does not prove an application or process.
+- **Coverage:** supported and unsupported fields, decoder version, active-resolution behavior, and analysis limitations.
+
+---
+
+## Analysis and Protocol Coverage
+
+RVI-Sentinel asks the installed TShark for its field catalog and requests only fields that version supports. Coverage depends on what the capture contains, what encryption leaves visible, and what the installed TShark can decode.
+
+| Layer or family | Examples of preserved metadata when visible |
+|---|---|
+| Ethernet and VLAN | MAC addresses, EtherType, VLAN identifiers |
+| ARP | IPv4/MAC mappings and operation codes |
+| IPv4 and IPv6 | Addresses, TTL/hop limit, DSCP/ECN, fragmentation, next-header values |
+| ICMP and ICMPv6 | Types, codes, neighbor discovery, router lifetime |
+| TCP | Ports, flags, sequence/acknowledgment, RTT, retransmissions, resets, window state |
+| UDP | Ports, stream identifiers, and datagram lengths |
+| DNS, mDNS, and DNS-SD | Queries, answers, A/AAAA, CNAME, PTR, record type, response code, TTL |
+| DHCP and DHCPv6 | Message type, assigned address, server/client identifiers |
+| TLS and certificates | Visible SNI, version, cipher suite, ALPN, subject, issuer, SAN, serial |
+| HTTP and HTTP/2 | Host/authority, method, URI/path, status, content type, stream/frame metadata when visible |
+| HTTP/3 and QUIC | Recognizable protocol metadata, version, connection IDs, and packet numbers when exposed |
+| STUN, TURN, WebRTC, DTLS | NAT traversal, mapped address, username, channel, and handshake metadata |
+| RTP and RTCP | SSRC, sequence, timestamp, payload, and control types |
+| SMB, SSH, and NTP | Visible operation, protocol, filename, reference, and stratum metadata |
+| ESP/IPsec, WireGuard, and VPNs | Recognizable tunnel metadata, endpoints, timing, and traffic volume |
+| Other recognized protocols | SSDP/UPnP, LLMNR, WebSocket, SCTP, GRE, IP-in-IP, MQTT, CoAP, OCSP, Kerberos, LDAP, FTP, TFTP, SIP, and Apple Push metadata |
+
+Encrypted payloads remain encrypted. Protocol recognition, ports, certificate names, and hostnames are metadata—not authorization to decrypt protected content and not proof of which iOS process generated a flow.
+
+---
+
+## Hostname Resolution and Provenance
+
+The native analyzer currently creates separate hostname-evidence records for:
+
+- captured DNS query or answer;
+- captured PTR answer;
+- TLS SNI;
+- HTTP Host or HTTP/2 authority;
+- active IPv4/IPv6 reverse resolution.
+
+mDNS and DNS-SD remain distinct protocol classifications and protocol-detail evidence, but their decoded DNS names currently use the DNS query/answer provenance labels. Certificate identity and QUIC/HTTP/3 metadata can appear under **Protocol Details** when the installed TShark exposes the relevant fields; the current analyzer does not emit them as separate hostname-provenance records.
+
+Active resolution is always enabled during analysis through TShark. Observed IP addresses may therefore be sent to the Mac's configured resolver. Names returned by that lookup are marked **Active reverse lookup**, **Low confidence**, and **Post-capture enrichment** so they are never confused with names directly present in the capture.
+
+A missing PTR record means only that the resolver returned no reverse name. A returned PTR name can be generic, shared, stale, or controlled by a provider; it is an attribution hint, not proof of ownership or intent.
+
+---
+
+## iOS Interface Evidence
+
+The **iOS Interfaces** workspace is populated only after analysis and only from capture-reported `frame.interface_name` values. It can describe observed labels such as:
+
+```text
+enN       Ethernet or Wi-Fi path label
+pdp_ipN   Cellular packet-data path label
+utunN     Tunnel or VPN path label
+ipsecN    IPsec path label
+awdlN     Apple Wireless Direct Link label
+llwN      Apple low-latency wireless label
+loN       Loopback label
+```
+
+The temporary Mac-side `rviN` transport is excluded from the iOS list.
+
+An interface row means that packets were observed with that label. It does **not** prove that every absent interface was down, that the capture saw every active interface, or that name-based classification proves an internal iOS route beyond the captured metadata.
+
+---
+
+## Protected Baselines
+
+Baselines are separate local JSON files scoped to one device or investigation. There is no shared default baseline.
+
+1. Create or select a baseline.
+2. Analyze a capture without changing the baseline.
+3. Review **New**, **Known**, **Changed**, and **Not observed in this capture** findings.
+4. Choose **Add Findings to Baseline** only after review.
+
+A timestamped recovery copy is written before an update or reset. Baseline export creates another local copy; it never embeds the original PCAP.
+
+New does not mean malicious. Mobile-device network infrastructure changes naturally because of roaming, CDNs, cloud services, software updates, DNS answers, VPNs, and application behavior.
+
+---
+
+## Exports and Diagnostics
+
+### Local reports
+
+- **JSON** preserves the typed analysis report and coverage metadata.
+- **CSV bundle** creates separate inventories and a SHA-256 manifest.
+- **HTML** creates a readable local report.
+
+Every export records its own hash. The source capture is not rewritten or embedded, and exports do not perform additional hostname lookups.
+
+### Redacted diagnostics
+
+The diagnostics preview can be reviewed before it is copied or saved. It excludes:
+
+- capture contents and report paths;
+- endpoint IP and MAC addresses;
+- captured or resolved hostnames;
+- device names and identifiers;
+- credentials and authorization data;
+- private filesystem paths.
+
+Diagnostics are for troubleshooting application readiness and workflow state, not for exporting investigation evidence.
+
+---
+
+## Testing
+
+Build the app and test bundle:
+
+```bash
+xcodebuild \
+  -project RVISentinel.xcodeproj \
+  -scheme RVISentinel \
+  -derivedDataPath DerivedData \
+  build-for-testing \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+Run the compiled test suite:
+
+```bash
+xcodebuild \
+  -project RVISentinel.xcodeproj \
+  -scheme RVISentinel \
+  -derivedDataPath DerivedData \
+  test-without-building \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+Quit any running copy of RVI-Sentinel before starting the tests. The application enforces a single instance, so an already-running build with the same bundle identifier will prevent the XCTest host from launching.
+
+The standard suite covers typed parsing, TShark integration, device discovery, simulator exclusion, readiness checks, capture command construction and finalization, format validation, interface evidence, hostname provenance, protected baselines, local exports, and diagnostic redaction. The physical workflow test is opt-in because it requires an authorized local capture:
+
+```bash
+RVI_SENTINEL_PHYSICAL_CAPTURE=/path/to/authorized-capture.pcapng \
+xcodebuild \
+  -project RVISentinel.xcodeproj \
+  -scheme RVISentinel \
+  -derivedDataPath DerivedData \
+  test \
+  -only-testing:RVISentinelTests/PhysicalWorkflowTests \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+Never use a private capture in CI or commit it to the repository.
+
+---
+
+## Repository Structure
+
+```text
+RVI-Sentinel-Swift/
+├── Sources/RVISentinel/
+│   ├── AppState.swift                 # Application workflow state
+│   ├── DeviceDiscovery.swift          # CoreDevice physical-device discovery
+│   ├── SetupChecker.swift             # Readiness checks and corrective actions
+│   ├── CaptureCoordinator.swift       # RVI, authorization, capture, validation, cleanup
+│   ├── TSharkAnalyzer.swift           # Supported-field streaming adapter
+│   ├── PacketAnalysis.swift           # Pure evidence accumulation and classification
+│   ├── ProtocolDetails.swift          # Protocol field descriptions and boundaries
+│   ├── InterfaceInventory.swift       # Host inventory and capture-reported iOS labels
+│   ├── BaselineStore.swift            # Explicit protected baseline operations
+│   ├── ReportExporter.swift           # JSON, CSV, HTML, and hashes
+│   ├── DiagnosticsModels.swift        # Privacy-redacted diagnostics
+│   └── *View.swift                    # Native SwiftUI workspaces
+├── Tests/RVISentinelTests/
+│   ├── PhysicalWorkflowTests.swift    # Opt-in authorized-capture integration path
+│   └── *Tests.swift                   # Capture, analysis, baseline, export, and privacy tests
+├── assets/
+│   └── rvi-sentinel-logo.png
+├── evidence/
+│   ├── rvi-sentinel-swift-overview.png
+│   ├── rvi-sentinel-swift-baselines.png
+│   └── rvi-sentinel-swift-diagnostics.png
+├── captures/                          # Ignored private evidence
+├── baselines/                         # Ignored local state
+├── exports/                           # Ignored generated reports
+├── project.yml                        # XcodeGen source configuration
+├── RVISentinel.xcodeproj/
+├── README.md
+└── LICENSE
+```
+
+---
+
+## Privacy and Responsible Use
+
+Packet captures can reveal sensitive metadata even when payloads are encrypted. The repository ignores packet-capture formats, local GeoIP databases, logs, and files placed in its `captures/`, `baselines/`, and `exports/` directories. Endpoint inventories, hostnames, device identifiers, baselines, reports, and any other sensitive artifacts stored elsewhere are not automatically protected and must never be committed or published in issues or pull requests.
+
+RVI-Sentinel does not upload captures or reports. All capture, analysis, baselining, export, and diagnostic generation is local. The important exception is active hostname resolution: observed IPv4 and IPv6 addresses may be sent to the Mac's configured DNS resolver during analysis.
+
+Use RVI-Sentinel only with devices, networks, and packet captures you own or are explicitly authorized to inspect.
+
+---
+
+## Evidence Boundaries
+
+- A network observation is not a malicious verdict.
+- A conventional port label is context, not proof of an application or service.
+- A resolved hostname is an attribution hint, not proof of ownership or intent.
+- An observed interface label is not a complete inventory of iOS interfaces.
+- Ordinary RVI traffic does not inherently reveal the responsible iOS process.
+- Unsupported or missing TShark fields are coverage gaps, not proof that activity was absent.
+- Encrypted sessions still expose some endpoint, timing, volume, and handshake metadata, but their protected payload remains unavailable.
+
+When no direct ownership evidence exists, the app reports that process attribution is unavailable instead of guessing from a hostname, port, vendor, or timing pattern.
+
+---
+
+## Relationship to the Python Edition
+
+| Edition | Host support | Interface | Capture path | Repository |
+|---|---|---|---|---|
+| Native Swift edition | macOS only | SwiftUI | Apple `rvictl` + `tcpdump` | This repository |
+| Python edition | macOS, Linux, and Windows | PySide6 + CLI | Apple RVI on macOS; separately installed `gh2o/rvi_capture` on Linux/Windows | [hideouts-io/RVI-Sentinel](https://github.com/hideouts-io/RVI-Sentinel) |
+
+The two editions are independent applications. The Python project remains available for cross-platform capture and CLI workflows; the Swift project focuses on a native, guided macOS experience.
+
+---
+
+## License
+
+RVI-Sentinel for macOS is MIT licensed. See [`LICENSE`](LICENSE). Apple system tools and Wireshark remain subject to their own licenses and distribution terms.
