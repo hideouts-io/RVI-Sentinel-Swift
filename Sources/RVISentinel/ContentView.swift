@@ -24,15 +24,9 @@ struct ContentView: View {
                 case .analysis:
                     AnalysisView()
                 case .baselines:
-                    NotYetMigratedView(
-                        title: "Baselines",
-                        detail: "Native baseline comparison will remain read-only by default and require an explicit Add Findings action."
-                    )
+                    BaselineView()
                 case .exports:
-                    NotYetMigratedView(
-                        title: "Exports",
-                        detail: "Native JSON, CSV, HTML, flow, endpoint, DNS, certificate, coverage, hash, and provenance exports are planned in the parity matrix."
-                    )
+                    ExportView()
                 }
             }
             .toolbar {

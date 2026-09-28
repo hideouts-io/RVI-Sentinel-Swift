@@ -37,7 +37,7 @@ Structured concurrency is used for external processes and long-running work. Pur
 
 ## Capture and privilege model
 
-The native capture coordinator will preserve this sequence:
+The native capture coordinator implements this sequence:
 
 1. Re-check that the selected physical device is booted, paired, visible, and attached over USB.
 2. Resolve `/Library/Apple/usr/bin/rvictl` and `/usr/sbin/tcpdump` explicitly.
@@ -49,11 +49,11 @@ The native capture coordinator will preserve this sequence:
 8. Remove the RVI on success, cancellation, failure, termination, or disconnect and verify removal.
 9. Preserve and report a valid saved capture as partial success if later cleanup fails.
 
-The first native milestone intentionally does not execute capture. Until the coordinator and hardware tests pass, the **Start Guided Capture** control reports that the Python capture path remains authoritative.
+The Swift capture path is enabled, but physical-device verification remains a release gate. Automated tests cover command construction, cancellation markers, SIGINT finalization, headers, and `capinfos` parsing; a real authorized iPhone/iPad matrix is still required before release qualification.
 
 ## Packet decoding and attribution
 
-The decoder design uses current `tshark` as an explicit external dependency because it supplies maintained protocol dissectors. Swift adapters will request a versioned field set, validate every row, retain unknown traffic as flow metadata, and record unsupported or absent fields as coverage—not as negative evidence. Protocol-specific reducers will be pure functions over typed decoded packets.
+The native decoder uses current `tshark` as an explicit external dependency because it supplies maintained protocol dissectors. The Swift adapter reads the installed field catalog, requests only supported fields, validates streamed rows, retains unknown traffic as endpoint/port/timing/volume metadata, and records unsupported fields as coverage—not as negative evidence. Protocol-specific reducers remain pure functions over typed decoded packets.
 
 Hostname observations are separate records keyed by hostname, related address, and provenance. Captured DNS, mDNS, DNS-SD, TLS SNI, HTTP Host, HTTP/2 authority, QUIC/HTTP/3 handshake evidence, certificate identities, and captured PTR records remain distinguishable. Active reverse lookup is disabled by default and will require explicit authorization because it generates traffic and discloses investigated addresses to the configured resolver.
 
@@ -94,10 +94,10 @@ Status meanings: **Implemented** is buildable native behavior with automated tes
 | Active resolution disabled by default | No | Implemented for native analysis; opt-in enrichment pending | Consent UI and network test |
 | Process attribution evidence boundary | No | Implemented typed unavailable state in endpoint results | PKTAP and ordinary RVI fixtures |
 | Local GeoIP | Yes | Python reference | Licensed local database fixture |
-| Read-only baseline default | Yes | Scaffolded | Store tests |
-| Explicit baseline preview/update | Yes | Scaffolded | Store and UI tests |
-| JSON and CSV export | Yes | Python reference | Golden-schema tests |
-| HTML, PDF, hashes, coverage export | No/partial | Scaffolded | Export tests |
+| Read-only baseline default | Yes | Implemented with separate local JSON baselines | Store and UI tests |
+| Explicit baseline preview/update | Yes | Implemented with preview, backup, reset, and export copy | Physical workflow review |
+| JSON and CSV export | Yes | Implemented with typed JSON and CSV hash manifest | Larger golden-schema corpus |
+| HTML, PDF, hashes, coverage export | No/partial | HTML, hashes, provenance, and coverage implemented; PDF pending | Rendered HTML and PDF implementation |
 | Redacted diagnostics | Yes | Scaffolded | Privacy corpus tests |
 | Dark/light/accessibility | Partial | Native system behavior | UI automation and VoiceOver review |
 
@@ -125,7 +125,7 @@ Controls are local-only storage, ignored evidence extensions/directories, struct
 1. **Foundation:** native Xcode project, workflow UI, CoreDevice discovery, setup checks, interface inventory, evidence contracts, and tests.
 2. **Capture lifecycle:** authorization, RVI creation, packet preflight/retry, exact timing, progress, SIGINT flush, validation, hash, cleanup, completion card, cancellation, disconnect handling, and app-termination recovery.
 3. **Analysis parity:** typed TShark adapter, Python report parity, endpoint/port explanations, hostname provenance, local enrichment, and coverage reporting.
-4. **Baseline and exports:** comparison states, review-before-update, recoverable reset, JSON/CSV/HTML, optional PDF, hashes, provenance, and limitations.
+4. **Baseline and exports:** New/Known/Changed/Removed comparison, review-before-update, recoverable reset, JSON/CSV/HTML, hashes, provenance, and limitations are implemented; optional PDF remains pending.
 5. **Extended protocols and capture modes:** protocol fixture matrix, host/specific/multi-interface evidence files, and time alignment without silent capture expansion.
 6. **Release qualification:** accessibility, dark/light mode, large/corrupt capture behavior, memory profiling, signed/notarized build, screenshots, and a real-device test matrix. The Python edition continues as a separate application.
 

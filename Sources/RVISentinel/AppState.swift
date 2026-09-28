@@ -18,6 +18,13 @@ final class AppState: ObservableObject {
     @Published private(set) var isAnalyzing = false
     @Published private(set) var analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Choose an authorized capture to begin.")
     @Published private(set) var analysisResult: NativeAnalysisResult?
+    @Published var baselineURL: URL?
+    @Published private(set) var baselineDocument: BaselineDocument?
+    @Published private(set) var baselineComparison: BaselineComparison?
+    @Published private(set) var lastBaselineBackupURL: URL?
+    @Published var exportDirectory: URL
+    @Published private(set) var exportReceipts: [ExportReceipt] = []
+    @Published private(set) var isExporting = false
     @Published var lastError: String?
     @Published var selectedDeviceIdentifier: String?
     @Published var outputDirectory: URL
@@ -28,6 +35,8 @@ final class AppState: ObservableObject {
     private let setupChecker: SetupChecker
     private let captureCoordinator: CaptureCoordinator
     private let analyzer: TSharkAnalyzer
+    private let baselineStore: BaselineStore
+    private let reportExporter: ReportExporter
 
     init(
         discoveryService: DeviceDiscoveryService,
@@ -35,6 +44,8 @@ final class AppState: ObservableObject {
         setupChecker: SetupChecker,
         captureCoordinator: CaptureCoordinator,
         analyzer: TSharkAnalyzer,
+        baselineStore: BaselineStore,
+        reportExporter: ReportExporter,
         outputDirectory: URL
     ) {
         self.discoveryService = discoveryService
@@ -42,7 +53,10 @@ final class AppState: ObservableObject {
         self.setupChecker = setupChecker
         self.captureCoordinator = captureCoordinator
         self.analyzer = analyzer
+        self.baselineStore = baselineStore
+        self.reportExporter = reportExporter
         self.outputDirectory = outputDirectory
+        self.exportDirectory = outputDirectory
     }
 
     static func live() -> AppState {
@@ -67,6 +81,8 @@ final class AppState: ObservableObject {
             setupChecker: checker,
             captureCoordinator: captureCoordinator,
             analyzer: analyzer,
+            baselineStore: BaselineStore(),
+            reportExporter: ReportExporter(),
             outputDirectory: output
         )
     }
@@ -200,6 +216,7 @@ final class AppState: ObservableObject {
             }
             analysisCaptureURL = selectedURL
             analysisResult = nil
+            baselineComparison = nil
             analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Ready to analyze locally. Active name resolution is disabled.")
         }
     }
@@ -213,8 +230,12 @@ final class AppState: ObservableObject {
         analysisResult = nil
         lastError = nil
         do {
-            analysisResult = try await analyzer.analyze(captureURL: analysisCaptureURL) { [weak self] update in
+            let result = try await analyzer.analyze(captureURL: analysisCaptureURL) { [weak self] update in
                 Task { @MainActor in self?.analysisProgress = update }
+            }
+            analysisResult = result
+            if let baselineDocument {
+                baselineComparison = compareBaseline(document: baselineDocument, result: result, comparedAt: Date())
             }
         } catch is CancellationError {
             analysisProgress = AnalysisProgress(decodedPackets: analysisProgress.decodedPackets, status: "Analysis cancelled. The original capture was not changed.")
@@ -228,6 +249,157 @@ final class AppState: ObservableObject {
     func cancelAnalysis() async {
         await analyzer.cancel()
     }
+
+    func chooseBaseline() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose an RVI-Sentinel Baseline"
+        panel.prompt = "Choose"
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        loadBaseline(url: url)
+    }
+
+    func createBaseline(scopeName: String) {
+        let panel = NSSavePanel()
+        panel.title = "Create a Separate Baseline"
+        panel.prompt = "Create"
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = "\(sanitizedFilename(scopeName))-baseline.json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let document = try baselineStore.create(url: url, scopeName: scopeName, createdAt: Date())
+            baselineURL = url
+            baselineDocument = document
+            lastBaselineBackupURL = nil
+            refreshBaselineComparison()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    func addFindingsToBaseline() {
+        guard let baselineURL, let analysisResult else {
+            lastError = "Select a baseline and complete an analysis before adding findings."
+            return
+        }
+        do {
+            let update = try baselineStore.update(url: baselineURL, result: analysisResult, reviewedAt: Date())
+            baselineDocument = update.document
+            lastBaselineBackupURL = update.backupURL
+            refreshBaselineComparison()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    func resetBaseline() {
+        guard let baselineURL else {
+            lastError = "Select a baseline before resetting it."
+            return
+        }
+        do {
+            let reset = try baselineStore.reset(url: baselineURL, resetAt: Date())
+            baselineDocument = reset.document
+            lastBaselineBackupURL = reset.backupURL
+            refreshBaselineComparison()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    func exportBaselineCopy() {
+        guard let baselineDocument else {
+            lastError = "Select a baseline before exporting a copy."
+            return
+        }
+        let panel = NSSavePanel()
+        panel.title = "Export Baseline Copy"
+        panel.prompt = "Export"
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = "\(sanitizedFilename(baselineDocument.scopeName))-baseline-copy.json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try baselineStore.exportCopy(document: baselineDocument, destinationURL: url)
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    func chooseExportDirectory() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Local Export Folder"
+        panel.prompt = "Choose"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = exportDirectory
+        if panel.runModal() == .OK, let url = panel.url {
+            exportDirectory = url
+        }
+    }
+
+    func exportAnalysis(format: ReportExportFormat) async {
+        guard let analysisResult else {
+            lastError = "Complete an analysis before exporting a report."
+            return
+        }
+        isExporting = true
+        lastError = nil
+        let exporter = reportExporter
+        let directory = exportDirectory
+        do {
+            let receipt = try await Task.detached(priority: .userInitiated) {
+                try exporter.export(result: analysisResult, format: format, directory: directory, generatedAt: Date())
+            }.value
+            exportReceipts.insert(receipt, at: 0)
+        } catch {
+            lastError = error.localizedDescription
+        }
+        isExporting = false
+    }
+
+    func revealExport(_ receipt: ExportReceipt) {
+        if receipt.outputURL.hasDirectoryPath {
+            NSWorkspace.shared.open(receipt.outputURL)
+        } else {
+            NSWorkspace.shared.activateFileViewerSelecting([receipt.outputURL])
+        }
+    }
+
+    private func loadBaseline(url: URL) {
+        do {
+            let document = try baselineStore.load(url: url)
+            baselineURL = url
+            baselineDocument = document
+            lastBaselineBackupURL = nil
+            refreshBaselineComparison()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    private func refreshBaselineComparison() {
+        guard let baselineDocument, let analysisResult else {
+            baselineComparison = nil
+            return
+        }
+        baselineComparison = compareBaseline(document: baselineDocument, result: analysisResult, comparedAt: Date())
+    }
+}
+
+func sanitizedFilename(_ value: String) -> String {
+    let scalars = value.unicodeScalars.map { scalar -> Character in
+        CharacterSet.alphanumerics.contains(scalar) || scalar.value == 45 || scalar.value == 95
+            ? Character(String(scalar))
+            : "-"
+    }
+    let normalized = String(scalars).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    return normalized.isEmpty ? "investigation" : normalized
 }
 
 func suggestedCaptureURL(

@@ -54,7 +54,7 @@ enum ProtocolKind: String, CaseIterable, Codable, Identifiable, Sendable {
     var id: String { rawValue }
 }
 
-enum TSharkField: String, CaseIterable, Sendable {
+enum TSharkField: String, CaseIterable, Codable, Sendable {
     case frameNumber = "frame.number"
     case frameTimeEpoch = "frame.time_epoch"
     case frameLength = "frame.len"
@@ -144,7 +144,7 @@ struct DecodedPacket: Sendable {
     }
 }
 
-struct EndpointObservation: Identifiable, Equatable, Sendable {
+struct EndpointObservation: Identifiable, Codable, Equatable, Sendable {
     let address: String
     let version: String
     let classification: String
@@ -161,7 +161,7 @@ struct EndpointObservation: Identifiable, Equatable, Sendable {
     var id: String { address }
 }
 
-struct ProtocolObservation: Identifiable, Equatable, Sendable {
+struct ProtocolObservation: Identifiable, Codable, Equatable, Sendable {
     let protocolKind: ProtocolKind
     let packetCount: Int
     let byteCount: Int64
@@ -170,7 +170,7 @@ struct ProtocolObservation: Identifiable, Equatable, Sendable {
     var id: ProtocolKind { protocolKind }
 }
 
-struct PortObservation: Identifiable, Equatable, Sendable {
+struct PortObservation: Identifiable, Codable, Equatable, Sendable {
     let transport: String
     let port: Int
     let packetCount: Int
@@ -181,7 +181,7 @@ struct PortObservation: Identifiable, Equatable, Sendable {
     var id: String { "\(transport)|\(port)" }
 }
 
-struct AnalysisCoverage: Equatable, Sendable {
+struct AnalysisCoverage: Codable, Equatable, Sendable {
     let tsharkVersion: String
     let supportedFields: [TSharkField]
     let unsupportedFields: [TSharkField]
@@ -189,7 +189,7 @@ struct AnalysisCoverage: Equatable, Sendable {
     let limitations: [String]
 }
 
-struct AnalysisSummary: Equatable, Sendable {
+struct AnalysisSummary: Codable, Equatable, Sendable {
     let captureURL: URL
     let captureSHA256: String
     let packetCount: Int
@@ -199,7 +199,7 @@ struct AnalysisSummary: Equatable, Sendable {
     let interfaces: [String]
 }
 
-struct NativeAnalysisResult: Equatable, Sendable {
+struct NativeAnalysisResult: Codable, Equatable, Sendable {
     let summary: AnalysisSummary
     let endpoints: [EndpointObservation]
     let hostnames: [HostnameEvidence]

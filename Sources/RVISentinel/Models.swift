@@ -141,7 +141,7 @@ struct HostnameEvidence: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-struct ProcessAttribution: Identifiable, Equatable, Sendable {
+struct ProcessAttribution: Identifiable, Codable, Equatable, Sendable {
     let processName: String
     let processIdentifier: Int?
     let bundleIdentifier: String?
