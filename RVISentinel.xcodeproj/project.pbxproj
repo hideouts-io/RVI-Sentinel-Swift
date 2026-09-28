@@ -12,6 +12,7 @@
 		0CF7650CC9A6E9CDE7C667C2 /* AnalysisModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C68087EA88289F045E7D5C0 /* AnalysisModels.swift */; };
 		0EDE72EF8354DB0D96FD7CF0 /* EvidenceModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B940C2559CBC8D7D61E459A7 /* EvidenceModelTests.swift */; };
 		115A77B0D33B7B3109206406 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBF1D9AD1DED359B23829509 /* Models.swift */; };
+		11AE089FC6EC45F3A99859B5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0F451F85629879697F760AD2 /* Assets.xcassets */; };
 		14D99F45D23744018673AE2D /* PacketAnalysisTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF960F372B648683B742318A /* PacketAnalysisTests.swift */; };
 		16C14BE27E1202A427168FBA /* ProtocolDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BEDB1EB3EE88804846CFB06 /* ProtocolDetails.swift */; };
 		1A5535A262E9F466E8914B02 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F086A701D6A26DE8786A5F /* AppStateTests.swift */; };
@@ -58,6 +59,7 @@
 
 /* Begin PBXFileReference section */
 		0D88C34D632EE2DF822D77EE /* SetupChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupChecker.swift; sourceTree = "<group>"; };
+		0F451F85629879697F760AD2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		18D68013F8E9905EB7B4A6F0 /* InterfaceInventory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfaceInventory.swift; sourceTree = "<group>"; };
 		1E752ECD486FD58AE3403F50 /* DeviceCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCaptureView.swift; sourceTree = "<group>"; };
 		27ECFF18CEE0EA781EDFE83E /* InterfaceInventoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfaceInventoryView.swift; sourceTree = "<group>"; };
@@ -102,6 +104,7 @@
 		1B0CD4C468C494D8A1390DCE = {
 			isa = PBXGroup;
 			children = (
+				8228D061A9627FA49C9B3DCC /* Resources */,
 				73187BCDD52A77837834140A /* Sources */,
 				E0F5A96D203ADFDD4AFAB9B4 /* Tests */,
 				5054F7F4E2E1C67C20C5D7CF /* Products */,
@@ -157,6 +160,14 @@
 			path = Sources;
 			sourceTree = "<group>";
 		};
+		8228D061A9627FA49C9B3DCC /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				0F451F85629879697F760AD2 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		D6CF1868024D6F4ED668E3D2 /* RVISentinelTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -192,6 +203,7 @@
 			buildConfigurationList = DD89FD86F3C545CD3961CDFB /* Build configuration list for PBXNativeTarget "RVISentinel" */;
 			buildPhases = (
 				4855B724B145E3EBA2B9A907 /* Sources */,
+				1C8B47DA8427C5CAFC7399B5 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -258,6 +270,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1C8B47DA8427C5CAFC7399B5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				11AE089FC6EC45F3A99859B5 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		4855B724B145E3EBA2B9A907 /* Sources */ = {
@@ -357,6 +380,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -376,6 +400,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -423,6 +448,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -436,6 +462,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

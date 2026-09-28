@@ -243,6 +243,32 @@ final class PacketAnalysisTests: XCTestCase {
         XCTAssertNotNil(result.protocols.first { $0.protocolKind == .udp })
         XCTAssertTrue(result.coverage.activeResolutionEnabled)
     }
+
+    func testRealTSharkRejectsCorruptCaptureWithDecoderDetail() async throws {
+        guard resolveTShark() != nil else {
+            throw XCTSkip("TShark is not installed on this test host.")
+        }
+        let captureURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("rvi-sentinel-corrupt-\(UUID().uuidString).pcap")
+        try Data("not a packet capture".utf8).write(to: captureURL, options: .atomic)
+        addTeardownBlock {
+            try FileManager.default.removeItem(at: captureURL)
+        }
+
+        do {
+            _ = try await TSharkAnalyzer(processRunner: ProcessRunner()).analyze(
+                captureURL: captureURL,
+                progress: { _ in }
+            )
+            XCTFail("Corrupt capture analysis unexpectedly succeeded.")
+        } catch let error as NativeAnalysisError {
+            guard case let .decodingFailed(detail) = error else {
+                return XCTFail("Expected a decoding failure, received: \(error.localizedDescription)")
+            }
+            XCTAssertTrue(detail.contains("tshark exit"))
+            XCTAssertTrue(detail.localizedCaseInsensitiveContains("capture file"))
+        }
+    }
 }
 
 private func syntheticUDPPacketCapture() -> Data {

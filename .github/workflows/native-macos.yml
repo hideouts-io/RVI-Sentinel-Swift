@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "Sources/**"
+      - "Resources/**"
       - "Tests/**"
       - "project.yml"
       - "RVISentinel.xcodeproj/**"
@@ -12,6 +13,7 @@ on:
     branches: [main]
     paths:
       - "Sources/**"
+      - "Resources/**"
       - "Tests/**"
       - "project.yml"
       - "RVISentinel.xcodeproj/**"
