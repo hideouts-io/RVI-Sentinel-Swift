@@ -146,6 +146,7 @@ enum EvidenceProvenance: String, Codable, CaseIterable, Sendable {
     case tlsSNI = "TLS SNI"
     case httpHost = "HTTP Host header"
     case http2Authority = "HTTP/2 authority"
+    case http3Authority = "HTTP/3 authority"
     case quicHandshake = "QUIC or HTTP/3 handshake evidence"
     case certificate = "Certificate SAN or subject"
     case capturedPTR = "Captured PTR answer"

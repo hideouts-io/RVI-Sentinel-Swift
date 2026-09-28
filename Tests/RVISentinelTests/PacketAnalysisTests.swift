@@ -98,6 +98,80 @@ final class PacketAnalysisTests: XCTestCase {
         XCTAssertEqual(sequenceRows.first { $0.value.contains("omitted") }?.occurrenceCount, 4)
     }
 
+    func testCapturedHostnameProvenanceRequiresDirectDecodedEvidence() throws {
+        var accumulator = AnalysisAccumulator()
+        let packets: [DecodedPacket] = [
+            DecodedPacket(values: [
+                .frameTimeEpoch: ["1700000000.0"], .frameLength: ["100"], .frameProtocols: ["eth:ip:udp:mdns"],
+                .dnsQueryName: ["printer.local"]
+            ]),
+            DecodedPacket(values: [
+                .frameTimeEpoch: ["1700000001.0"], .frameLength: ["110"], .frameProtocols: ["eth:ip:udp:mdns"],
+                .dnsQueryName: ["_airplay._tcp.local"]
+            ]),
+            DecodedPacket(values: [
+                .frameTimeEpoch: ["1700000002.0"], .frameLength: ["120"], .frameProtocols: ["eth:ip:tcp:tls"],
+                .ipv4Destination: ["192.0.2.20"], .certificateDNSName: ["certificate.example"]
+            ]),
+            DecodedPacket(values: [
+                .frameTimeEpoch: ["1700000003.0"], .frameLength: ["130"], .frameProtocols: ["eth:ip:udp:quic:tls"],
+                .ipv4Destination: ["192.0.2.30"], .tlsSNI: ["quic.example"]
+            ]),
+            DecodedPacket(values: [
+                .frameTimeEpoch: ["1700000004.0"], .frameLength: ["140"], .frameProtocols: ["eth:ip:udp:quic:http3"],
+                .ipv4Destination: ["192.0.2.40"], .http3Authority: ["http3.example"]
+            ])
+        ]
+        for packet in packets { try accumulator.consume(packet: packet) }
+
+        let result = accumulator.result(
+            captureURL: URL(fileURLWithPath: "/tmp/synthetic-provenance.pcapng"),
+            hash: String(repeating: "d", count: 64),
+            coverage: AnalysisCoverage(tsharkVersion: "synthetic", supportedFields: TSharkField.allCases, unsupportedFields: [], activeResolutionEnabled: false, limitations: [])
+        )
+        let provenanceByHostname = Dictionary(uniqueKeysWithValues: result.hostnames.map { ($0.hostname, $0.provenance) })
+
+        XCTAssertEqual(provenanceByHostname["printer.local"], .capturedMDNS)
+        XCTAssertEqual(provenanceByHostname["_airplay._tcp.local"], .capturedDNSSD)
+        XCTAssertEqual(provenanceByHostname["certificate.example"], .certificate)
+        XCTAssertEqual(provenanceByHostname["quic.example"], .quicHandshake)
+        XCTAssertEqual(provenanceByHostname["http3.example"], .http3Authority)
+        XCTAssertTrue(result.hostnames.allSatisfy { $0.confidence == .direct && !$0.isPostCaptureEnrichment })
+    }
+
+    func testPriorityProtocolFamiliesPreserveTypedDecodedEvidence() throws {
+        let fixtures: [(stack: String, field: TSharkField, value: String, expected: ProtocolKind)] = [
+            ("eth:ipv6:icmpv6", .icmpv6NeighborSolicitationTarget, "2001:db8::10", .icmpv6),
+            ("eth:ipv6:udp:dhcpv6", .dhcpv6MessageType, "1", .dhcpv6),
+            ("eth:ip:udp:stun", .stunMappedAddress, "192.0.2.50", .stun),
+            ("eth:ip:udp:turnchannel", .turnChannelNumber, "16384", .turn),
+            ("eth:ip:udp:rtp", .rtpSSRC, "1234", .rtp),
+            ("eth:ip:udp:rtcp", .rtcpType, "200", .rtcp),
+            ("eth:ip:tcp:smb2", .smbCommand, "5", .smb),
+            ("eth:ip:udp:ntp", .ntpStratum, "2", .ntp),
+            ("eth:ip:esp", .espSPI, "0x01020304", .esp),
+            ("eth:ip:udp:wg", .wireGuardMessageType, "1", .wireGuard)
+        ]
+        var accumulator = AnalysisAccumulator()
+        for (index, fixture) in fixtures.enumerated() {
+            try accumulator.consume(packet: DecodedPacket(values: [
+                .frameTimeEpoch: [String(1_700_001_000 + index)],
+                .frameLength: ["128"],
+                .frameProtocols: [fixture.stack],
+                fixture.field: [fixture.value]
+            ]))
+        }
+        let result = accumulator.result(
+            captureURL: URL(fileURLWithPath: "/tmp/synthetic-protocols.pcapng"),
+            hash: String(repeating: "e", count: 64),
+            coverage: AnalysisCoverage(tsharkVersion: "synthetic", supportedFields: TSharkField.allCases, unsupportedFields: [], activeResolutionEnabled: false, limitations: [])
+        )
+
+        for fixture in fixtures {
+            XCTAssertTrue(result.protocolDetails.contains { $0.protocolKind == fixture.expected && $0.field == fixture.field && $0.value == fixture.value })
+        }
+    }
+
     func testCatalogFiltersOnlyFieldRecords() {
         let output = "P\tParent\nF\tFrame Number\tframe.number\tFT_UINT32\tframe\nF\tDNS Query\tdns.qry.name\tFT_STRING\tdns\n"
         let catalog = parseTSharkFieldCatalog(output)

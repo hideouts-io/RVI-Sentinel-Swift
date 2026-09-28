@@ -275,22 +275,33 @@ struct AnalysisAccumulator {
     }
 
     private mutating func addHostnameEvidence(packet: DecodedPacket, timestamp: Date, destinationAddress: String?) {
-        addHostnames(packet.all(.dnsQueryName), address: nil, provenance: .capturedDNSQuery, timestamp: timestamp)
+        for name in packet.all(.dnsQueryName) {
+            addHostname(
+                name,
+                address: nil,
+                provenance: capturedDNSProvenance(name: name, isResponse: false, packet: packet),
+                timestamp: timestamp
+            )
+        }
         let answerAddresses = packet.all(.dnsA) + packet.all(.dnsAAAA)
         let responseNames = packet.all(.dnsResponseName)
         for name in responseNames {
+            let provenance = capturedDNSProvenance(name: name, isResponse: true, packet: packet)
             if answerAddresses.isEmpty {
-                addHostname(name, address: nil, provenance: .capturedDNSAnswer, timestamp: timestamp)
+                addHostname(name, address: nil, provenance: provenance, timestamp: timestamp)
             } else {
                 for address in answerAddresses {
-                    addHostname(name, address: address, provenance: .capturedDNSAnswer, timestamp: timestamp)
+                    addHostname(name, address: address, provenance: provenance, timestamp: timestamp)
                 }
             }
         }
         addHostnames(packet.all(.dnsPTR), address: nil, provenance: .capturedPTR, timestamp: timestamp)
-        addHostnames(packet.all(.tlsSNI), address: destinationAddress, provenance: .tlsSNI, timestamp: timestamp)
+        let sniProvenance: EvidenceProvenance = frameProtocolTokens(packet: packet).contains("quic") ? .quicHandshake : .tlsSNI
+        addHostnames(packet.all(.tlsSNI), address: destinationAddress, provenance: sniProvenance, timestamp: timestamp)
+        addHostnames(packet.all(.certificateDNSName), address: destinationAddress, provenance: .certificate, timestamp: timestamp)
         addHostnames(packet.all(.httpHost), address: destinationAddress, provenance: .httpHost, timestamp: timestamp)
         addHostnames(packet.all(.http2Authority), address: destinationAddress, provenance: .http2Authority, timestamp: timestamp)
+        addHostnames(packet.all(.http3Authority), address: destinationAddress, provenance: .http3Authority, timestamp: timestamp)
         addResolvedHostnames(addresses: packet.all(.ipv4Source), hostnames: packet.all(.ipv4SourceHost), timestamp: timestamp)
         addResolvedHostnames(addresses: packet.all(.ipv4Destination), hostnames: packet.all(.ipv4DestinationHost), timestamp: timestamp)
         addResolvedHostnames(addresses: packet.all(.ipv6Source), hostnames: packet.all(.ipv6SourceHost), timestamp: timestamp)
@@ -335,6 +346,22 @@ struct AnalysisAccumulator {
             )
         }
     }
+}
+
+func capturedDNSProvenance(name: String, isResponse: Bool, packet: DecodedPacket) -> EvidenceProvenance {
+    if isDNSSDName(name) { return .capturedDNSSD }
+    if frameProtocolTokens(packet: packet).contains("mdns") { return .capturedMDNS }
+    return isResponse ? .capturedDNSAnswer : .capturedDNSQuery
+}
+
+func isDNSSDName(_ value: String) -> Bool {
+    let labels = value
+        .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        .lowercased()
+        .split(separator: ".")
+        .map(String.init)
+    guard labels.first?.hasPrefix("_") == true else { return false }
+    return labels.contains("_tcp") || labels.contains("_udp")
 }
 
 func resolvedHostnamePairs(addresses: [String], hostnames: [String]) -> [(address: String, hostname: String)] {
@@ -405,10 +432,11 @@ func parseQuotedTSV(_ row: String) throws -> [String] {
 }
 
 func protocolKinds(packet: DecodedPacket) -> Set<ProtocolKind> {
-    let tokens = Set((packet.first(.frameProtocols) ?? "").lowercased().split(separator: ":").map(String.init))
+    let tokens = frameProtocolTokens(packet: packet)
     var result = Set(tokens.compactMap(protocolKind(token:)))
     if !packet.all(.tlsSNI).isEmpty { result.insert(.tls) }
     if !packet.all(.http2Authority).isEmpty { result.insert(.http2) }
+    if !packet.all(.http3Authority).isEmpty { result.insert(.http3) }
     if !packet.all(.quicVersion).isEmpty { result.insert(.quic) }
     if packet.all(.dnsQueryName).contains(where: { $0.hasPrefix("_") }) { result.insert(.dnsSD) }
     if packet.all(.tlsSNI).contains(where: { $0.lowercased().contains("push.apple.com") }) { result.insert(.applePush) }
@@ -416,6 +444,10 @@ func protocolKinds(packet: DecodedPacket) -> Set<ProtocolKind> {
     let transportOnly: Set<ProtocolKind> = [.ethernet, .ipv4, .ipv6, .icmp, .icmpv6, .tcp, .udp]
     if result.isEmpty || result.isSubset(of: transportOnly) { result.insert(.unknown) }
     return result
+}
+
+func frameProtocolTokens(packet: DecodedPacket) -> Set<String> {
+    Set((packet.first(.frameProtocols) ?? "").lowercased().split(separator: ":").map(String.init))
 }
 
 func protocolKind(token: String) -> ProtocolKind? {

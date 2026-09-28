@@ -277,12 +277,15 @@ Encrypted payloads remain encrypted. Protocol recognition, ports, certificate na
 The native analyzer currently creates separate hostname-evidence records for:
 
 - captured DNS query or answer;
+- captured mDNS and DNS-SD names when the packet metadata or service-name pattern directly establishes that source;
 - captured PTR answer;
 - TLS SNI;
-- HTTP Host or HTTP/2 authority;
+- HTTP Host, HTTP/2 authority, or HTTP/3 authority;
+- certificate DNS subject alternative names;
+- TLS SNI carried by a captured QUIC handshake;
 - active IPv4/IPv6 reverse resolution.
 
-mDNS and DNS-SD remain distinct protocol classifications and protocol-detail evidence, but their decoded DNS names currently use the DNS query/answer provenance labels. Certificate identity and QUIC/HTTP/3 metadata can appear under **Protocol Details** when the installed TShark exposes the relevant fields; the current analyzer does not emit them as separate hostname-provenance records.
+These labels come from decoded capture fields, not from ports or vendor guesses. Certificate subjects without a DNS SAN are not promoted to hostnames, and a QUIC classification by itself does not create hostname evidence.
 
 Active resolution is always enabled during analysis through TShark. Observed IP addresses may therefore be sent to the Mac's configured resolver. Names returned by that lookup are marked **Active reverse lookup**, **Low confidence**, and **Post-capture enrichment** so they are never confused with names directly present in the capture.
 

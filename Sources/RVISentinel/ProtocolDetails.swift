@@ -77,6 +77,7 @@ func protocolDetailDefinition(field: TSharkField, observedProtocols: Set<Protoco
     case .http2Method: detail(.http2, "Headers", "Method")
     case .http2Path: detail(.http2, "Headers", "Path")
     case .http2Status: detail(.http2, "Headers", "Status")
+    case .http3Authority: detail(.http3, "Headers", "Authority")
     case .quicVersion: detail(.quic, "Handshake", "QUIC version")
     case .quicDestinationConnectionID: detail(.quic, "Connection", "Destination connection ID")
     case .quicSourceConnectionID: detail(.quic, "Connection", "Source connection ID")

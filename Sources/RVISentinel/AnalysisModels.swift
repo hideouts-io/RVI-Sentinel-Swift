@@ -141,6 +141,7 @@ enum TSharkField: String, CaseIterable, Codable, Sendable {
     case http2Method = "http2.headers.method"
     case http2Path = "http2.headers.path"
     case http2Status = "http2.headers.status"
+    case http3Authority = "http3.headers.authority"
     case quicVersion = "quic.version"
     case quicDestinationConnectionID = "quic.dcid"
     case quicSourceConnectionID = "quic.scid"
