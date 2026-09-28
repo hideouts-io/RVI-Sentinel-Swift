@@ -44,7 +44,7 @@ struct SetupChecker: Sendable {
             if interfaces.isEmpty {
                 return SetupCheck(identifier: .cleanupState, title: "Capture cleanup state", state: .passed, detail: "No existing RVI interfaces were found.", correctiveAction: "No action required.", evidenceSource: "macOS getifaddrs")
             }
-            return SetupCheck(identifier: .cleanupState, title: "Capture cleanup state", state: .warning, detail: "Existing RVI interfaces: \(interfaces.map(\.name).joined(separator: ", ")).", correctiveAction: "Confirm that no capture is using them, then remove each orphan with rvictl before starting a new session.", evidenceSource: "macOS getifaddrs")
+            return SetupCheck(identifier: .cleanupState, title: "Capture cleanup state", state: .warning, detail: "Existing RVI interfaces: \(interfaces.map(\.name).joined(separator: ", ")).", correctiveAction: "Confirm that no capture is using them. If none is active, disconnect the device, restart the Mac, reconnect, and run the checks again before capturing.", evidenceSource: "macOS getifaddrs")
         } catch {
             return SetupCheck(identifier: .cleanupState, title: "Capture cleanup state", state: .failed, detail: error.localizedDescription, correctiveAction: "Retry after restarting the app. Interface state must be known before capture.", evidenceSource: "macOS getifaddrs")
         }
@@ -56,8 +56,12 @@ struct SetupChecker: Sendable {
             if result.exitCode == 0 {
                 return SetupCheck(identifier: identifier, title: title, state: .passed, detail: successDetail, correctiveAction: "No action required.", evidenceSource: "\(executable) \(arguments.joined(separator: " "))")
             }
-            let detail = result.standardError.isEmpty ? result.standardOutput : result.standardError
-            return SetupCheck(identifier: identifier, title: title, state: .failed, detail: detail.trimmingCharacters(in: .whitespacesAndNewlines), correctiveAction: fix, evidenceSource: "\(executable) exit code \(result.exitCode)")
+            let output = (result.standardError.isEmpty ? result.standardOutput : result.standardError)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail = output.isEmpty
+                ? "The readiness command failed with exit code \(result.exitCode) and returned no diagnostic text."
+                : "The readiness command failed with exit code \(result.exitCode): \(output)"
+            return SetupCheck(identifier: identifier, title: title, state: .failed, detail: detail, correctiveAction: fix, evidenceSource: "\(executable) exit code \(result.exitCode)")
         } catch {
             return SetupCheck(identifier: identifier, title: title, state: .failed, detail: error.localizedDescription, correctiveAction: fix, evidenceSource: "Process launch")
         }
@@ -67,12 +71,41 @@ struct SetupChecker: Sendable {
 func deviceChecks(devices: [DeviceInfo]) -> [SetupCheck] {
     let connected = devices.filter { $0.transport == "wired" }
     let ready = devices.filter { $0.readiness == .ready }
+    let trustDetail: String
+    let trustAction: String
+    if connected.isEmpty {
+        trustDetail = "Pairing and trust cannot be evaluated because no physical device is visible over USB."
+        trustAction = "Connect and unlock the device with a data-capable USB cable, then refresh before evaluating trust."
+    } else if ready.isEmpty {
+        let states = connected.map(\.status).sorted().joined(separator: "; ")
+        trustDetail = "A USB device is visible but is not capture-ready: \(states)"
+        trustAction = deviceReadinessCorrectiveAction(devices: connected)
+    } else {
+        trustDetail = "\(ready.count) device(s) are booted, paired, visible, and capture-ready over USB."
+        trustAction = "No action required."
+    }
     return [
         SetupCheck(identifier: .device, title: "Connected iPhone or iPad", state: devices.isEmpty ? .failed : .passed, detail: devices.isEmpty ? "No physical iPhone or iPad is visible." : "\(devices.count) physical Apple mobile device(s) visible.", correctiveAction: devices.isEmpty ? "Connect an unlocked iPhone or iPad with a data-capable USB cable." : "No action required.", evidenceSource: "Apple CoreDevice via devicectl"),
         SetupCheck(identifier: .usb, title: "USB visibility", state: connected.isEmpty ? .failed : .passed, detail: connected.isEmpty ? "No physical device is reported over wired USB." : "\(connected.count) device(s) are visible over USB.", correctiveAction: connected.isEmpty ? "Unlock the device, reconnect the cable directly, and allow the accessory connection." : "No action required.", evidenceSource: "devicectl connectionProperties.transportType"),
-        SetupCheck(identifier: .trust, title: "Device trust and pairing", state: ready.isEmpty ? .failed : .passed, detail: ready.isEmpty ? "No USB device is booted, paired, and ready." : "\(ready.count) device(s) are paired and capture-ready.", correctiveAction: ready.isEmpty ? "Unlock the device, choose Trust when prompted, enter the device passcode, and refresh." : "No action required.", evidenceSource: "devicectl pairing, boot, transport, and visibility state"),
+        SetupCheck(identifier: .trust, title: "Device readiness and trust", state: ready.isEmpty ? .failed : .passed, detail: trustDetail, correctiveAction: trustAction, evidenceSource: "devicectl pairing, boot, transport, and visibility state"),
         SetupCheck(identifier: .developerSupport, title: "Developer support", state: devices.isEmpty ? .warning : .passed, detail: devices.isEmpty ? "Developer support cannot be evaluated without a visible device." : "Apple CoreDevice returned device details successfully.", correctiveAction: devices.isEmpty ? "Connect the device, then enable Developer Mode only if macOS explicitly requires it for RVI." : "No action required.", evidenceSource: "devicectl device metadata")
     ]
+}
+
+func deviceReadinessCorrectiveAction(devices: [DeviceInfo]) -> String {
+    let needsTrust = devices.contains { $0.pairingState != "paired" }
+    let needsBoot = devices.contains { $0.bootState != "booted" }
+    var actions: [String] = []
+    if needsTrust {
+        actions.append("unlock the device, choose Trust when prompted, and enter the device passcode")
+    }
+    if needsBoot {
+        actions.append("keep the device powered on and unlocked until it reports booted")
+    }
+    if actions.isEmpty {
+        actions.append("reconnect the unlocked device directly by USB so CoreDevice reports it as available")
+    }
+    return actions.joined(separator: "; ").capitalized + ", then refresh."
 }
 
 func unavailableDeviceChecks(detail: String) -> [SetupCheck] {

@@ -14,6 +14,8 @@ struct DiagnosticSetupCheck: Codable, Equatable, Sendable {
     let detail: String
     let correctiveAction: String
     let evidenceSource: String
+    let retryGuidance: String
+    let evidenceImpact: String
 }
 
 struct DiagnosticInterface: Codable, Equatable, Sendable {
@@ -88,7 +90,9 @@ func makeRedactedDiagnostics(input: DiagnosticsInput) -> RedactedDiagnostics {
             state: check.state,
             detail: redactSensitiveText(check.detail, sensitiveValues: input.sensitiveValues),
             correctiveAction: redactSensitiveText(check.correctiveAction, sensitiveValues: input.sensitiveValues),
-            evidenceSource: redactSensitiveText(check.evidenceSource, sensitiveValues: input.sensitiveValues)
+            evidenceSource: redactSensitiveText(check.evidenceSource, sensitiveValues: input.sensitiveValues),
+            retryGuidance: redactSensitiveText(check.recoveryGuidance.retry, sensitiveValues: input.sensitiveValues),
+            evidenceImpact: redactSensitiveText(check.recoveryGuidance.evidenceImpact, sensitiveValues: input.sensitiveValues)
         )
     }
     let diagnosticInterfaces = input.interfaces.map { interface in

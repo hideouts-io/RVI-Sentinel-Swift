@@ -65,6 +65,12 @@ struct SetupCheckRow: View {
                 if check.state != .passed {
                     Label(check.correctiveAction, systemImage: "wrench.and.screwdriver")
                         .font(.callout)
+                    Label(check.recoveryGuidance.retry, systemImage: "arrow.clockwise")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Label(check.recoveryGuidance.evidenceImpact, systemImage: "checkmark.shield")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Text("Evidence: \(check.evidenceSource)")
                     .font(.caption)

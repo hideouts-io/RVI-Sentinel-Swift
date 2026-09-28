@@ -78,5 +78,28 @@ final class EvidenceModelTests: XCTestCase {
         let checks = deviceChecks(devices: [device])
         XCTAssertEqual(checks.first { $0.identifier == .usb }?.state, .passed)
         XCTAssertEqual(checks.first { $0.identifier == .trust }?.state, .failed)
+        XCTAssertTrue(checks.first { $0.identifier == .trust }?.detail.contains("not paired") == true)
+        XCTAssertTrue(checks.first { $0.identifier == .trust }?.correctiveAction.contains("Trust") == true)
+    }
+
+    func testDeviceChecksDistinguishDisconnectedFromUntrusted() {
+        let checks = deviceChecks(devices: [])
+
+        XCTAssertEqual(checks.first { $0.identifier == .device }?.detail, "No physical iPhone or iPad is visible.")
+        XCTAssertTrue(checks.first { $0.identifier == .trust }?.detail.contains("no physical device is visible over USB") == true)
+    }
+
+    func testFailedSetupCheckExplainsSafeRetryAndEvidencePreservation() {
+        let check = SetupCheck(
+            identifier: .trust,
+            title: "Device readiness and trust",
+            state: .failed,
+            detail: "The device is not paired.",
+            correctiveAction: "Trust the Mac.",
+            evidenceSource: "Synthetic fixture"
+        )
+
+        XCTAssertTrue(check.recoveryGuidance.retry.contains("run the checks again"))
+        XCTAssertTrue(check.recoveryGuidance.evidenceImpact.contains("does not modify captures, baselines, or exports"))
     }
 }

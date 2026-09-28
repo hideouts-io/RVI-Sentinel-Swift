@@ -59,6 +59,38 @@ struct SetupCheck: Identifiable, Equatable {
     let evidenceSource: String
 
     var id: SetupCheckIdentifier { identifier }
+
+    var recoveryGuidance: SetupRecoveryGuidance {
+        setupRecoveryGuidance(identifier: identifier, state: state)
+    }
+}
+
+struct SetupRecoveryGuidance: Equatable, Sendable {
+    let retry: String
+    let evidenceImpact: String
+}
+
+func setupRecoveryGuidance(identifier: SetupCheckIdentifier, state: CheckState) -> SetupRecoveryGuidance {
+    let evidenceImpact = "This readiness check is read-only. It does not modify captures, baselines, or exports."
+    guard state != .passed else {
+        return SetupRecoveryGuidance(retry: "No retry is required.", evidenceImpact: evidenceImpact)
+    }
+    let retry: String
+    switch identifier {
+    case .device:
+        retry = "Connect and unlock the device, then run the checks again. Rechecking does not start a capture."
+    case .usb:
+        retry = "Reconnect with a data-capable cable, approve the accessory connection, then run the checks again."
+    case .trust:
+        retry = "Complete pairing or device-readiness steps, then run the checks again."
+    case .developerSupport, .rvictl, .rpmuxd, .tcpdump, .analysisBackend, .macOSComponents:
+        retry = "Complete the corrective action, then run the checks again. No packet capture starts during setup checks."
+    case .outputFolder, .diskSpace:
+        retry = "Correct or change the destination, then run the checks again before starting a capture."
+    case .cleanupState:
+        retry = "First confirm that no authorized capture is running. Resolve the orphaned RVI state, then run the checks again."
+    }
+    return SetupRecoveryGuidance(retry: retry, evidenceImpact: evidenceImpact)
 }
 
 enum DeviceReadiness: String, Codable {
