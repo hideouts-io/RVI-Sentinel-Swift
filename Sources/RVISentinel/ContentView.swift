@@ -22,10 +22,7 @@ struct ContentView: View {
                 case .interfaces:
                     InterfaceInventoryView()
                 case .analysis:
-                    NotYetMigratedView(
-                        title: "Analysis",
-                        detail: "The Python analyzer remains the authoritative path while native protocol decoders and provenance-preserving results are implemented and verified."
-                    )
+                    AnalysisView()
                 case .baselines:
                     NotYetMigratedView(
                         title: "Baselines",

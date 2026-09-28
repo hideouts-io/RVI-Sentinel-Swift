@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let otherInstances = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
             .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
         guard let existing = otherInstances.first else { return }
-        existing.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        existing.activate(options: [.activateAllWindows])
         NSApplication.shared.terminate(nil)
     }
 

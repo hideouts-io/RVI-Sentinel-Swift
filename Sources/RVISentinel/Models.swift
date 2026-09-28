@@ -103,7 +103,7 @@ struct NetworkInterfaceInfo: Identifiable, Equatable, Sendable {
     var id: String { name }
 }
 
-enum EvidenceProvenance: String, Codable, CaseIterable {
+enum EvidenceProvenance: String, Codable, CaseIterable, Sendable {
     case capturedDNSQuery = "Captured DNS query"
     case capturedDNSAnswer = "Captured DNS answer"
     case capturedMDNS = "Captured mDNS"
@@ -119,7 +119,7 @@ enum EvidenceProvenance: String, Codable, CaseIterable {
     case userAnnotation = "User-supplied annotation"
 }
 
-enum ConfidenceLevel: String, Codable {
+enum ConfidenceLevel: String, Codable, Sendable {
     case direct = "Direct"
     case high = "High"
     case medium = "Medium"
@@ -127,7 +127,7 @@ enum ConfidenceLevel: String, Codable {
     case unavailable = "Unavailable"
 }
 
-struct HostnameEvidence: Identifiable, Codable, Equatable {
+struct HostnameEvidence: Identifiable, Codable, Equatable, Sendable {
     let hostname: String
     let address: String?
     let provenance: EvidenceProvenance
@@ -141,7 +141,7 @@ struct HostnameEvidence: Identifiable, Codable, Equatable {
     }
 }
 
-struct ProcessAttribution: Identifiable, Equatable {
+struct ProcessAttribution: Identifiable, Equatable, Sendable {
     let processName: String
     let processIdentifier: Int?
     let bundleIdentifier: String?

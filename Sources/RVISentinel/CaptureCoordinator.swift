@@ -283,6 +283,9 @@ actor CaptureCoordinator {
             let elapsed = Date().timeIntervalSince(captureStart)
             let bytes = captureFileSize(url: configuration.outputURL)
             progress(CaptureProgress(phase: elapsed < TimeInterval(configuration.durationSeconds) ? .capturing : .finalizing, elapsedSeconds: min(elapsed, TimeInterval(configuration.durationSeconds)), packetCount: 0, bytesWritten: bytes, status: elapsed < TimeInterval(configuration.durationSeconds) ? "Live packets verified. Capturing \(interfaceName)." : "Requested duration reached. Waiting for tcpdump to flush and close."))
+            if await observation.snapshot() != nil {
+                break
+            }
             if elapsed >= TimeInterval(configuration.durationSeconds + 2) {
                 break
             }
@@ -290,7 +293,9 @@ actor CaptureCoordinator {
         }
 
         let processResult = try await processTask.value
-        if FileManager.default.fileExists(atPath: plan.cancellationMarker.path) {
+        if processResult.exitCode == 44
+            || processResult.standardError.contains("error number 44")
+            || FileManager.default.fileExists(atPath: plan.cancellationMarker.path) {
             throw CaptureCoordinatorError.cancelled
         }
         if FileManager.default.fileExists(atPath: plan.failureMarker.path) {

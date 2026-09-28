@@ -140,7 +140,7 @@ struct CaptureCompletionView: View {
                 }
                 .textSelection(.enabled)
                 HStack {
-                    Button("Analyze") { appState.selectedSection = .analysis }
+                    Button("Analyze") { appState.prepareCompletedCaptureForAnalysis() }
                         .buttonStyle(.borderedProminent)
                     Button("Open File Location") { appState.revealCapture() }
                     Button("Capture Again") { appState.clearCaptureCompletion() }

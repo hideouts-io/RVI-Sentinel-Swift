@@ -80,19 +80,19 @@ Status meanings: **Implemented** is buildable native behavior with automated tes
 | Host interface inventory | No | Implemented | Live host inventory |
 | Host/RVI/VPN ownership boundary | No | Implemented | Classification tests + UI review |
 | MTU and network-service mapping | No | Scaffolded | SystemConfiguration implementation |
-| Guided RVI capture | Yes | Python reference | Real-device lifecycle tests |
+| Guided RVI capture | Yes | Implemented; hardware verification pending | Real-device lifecycle tests |
 | Host/specific/multi-interface capture | No | Scaffolded | Privilege and evidence-boundary design |
-| Live packet/byte progress | Partial | Scaffolded | Real capture |
-| Retryable packet preflight | Yes | Python reference | Idle-device and disconnect tests |
-| SIGINT flush and file validation | Yes | Python reference | PCAP and PCAPNG hardware tests |
-| Partial-success cleanup semantics | Yes | Python reference | Forced cleanup failure |
-| Completion card | Yes | Scaffolded typed model | UI and real capture |
-| Core endpoint/DNS/TLS/port analysis | Yes | Python reference | Synthetic capture parity |
-| Comprehensive protocol decoders | No | Scaffolded evidence model | Per-protocol synthetic captures |
-| Unknown traffic representation | No | Scaffolded | Synthetic unknown-IP-protocol fixture |
-| Hostname provenance | Partial | Implemented typed contract | Decoder fixtures and UI |
-| Active resolution disabled by default | No | Designed | Consent UI and network test |
-| Process attribution evidence boundary | No | Implemented typed unavailable state | PKTAP and ordinary RVI fixtures |
+| Live packet/byte progress | Partial | Implemented byte/time phases; live packet count pending | Real capture |
+| Retryable packet preflight | Yes | Implemented; targeted recovery UI pending | Idle-device and disconnect tests |
+| SIGINT flush and file validation | Yes | Implemented | PCAP and PCAPNG hardware tests |
+| Partial-success cleanup semantics | Yes | Implemented | Forced cleanup failure |
+| Completion card | Yes | Implemented | UI and real capture |
+| Core endpoint/DNS/TLS/port analysis | Yes | Implemented native streaming core | Synthetic capture parity and large capture |
+| Comprehensive protocol decoders | No | Field registry and protocol inventory implemented; detail decoders partial | Per-protocol synthetic captures |
+| Unknown traffic representation | No | Implemented at flow/endpoint/port/size level | Synthetic unknown-IP-protocol fixture |
+| Hostname provenance | Partial | Implemented for captured DNS, PTR, TLS SNI, HTTP Host, and HTTP/2 authority | Decoder fixtures and UI |
+| Active resolution disabled by default | No | Implemented for native analysis; opt-in enrichment pending | Consent UI and network test |
+| Process attribution evidence boundary | No | Implemented typed unavailable state in endpoint results | PKTAP and ordinary RVI fixtures |
 | Local GeoIP | Yes | Python reference | Licensed local database fixture |
 | Read-only baseline default | Yes | Scaffolded | Store tests |
 | Explicit baseline preview/update | Yes | Scaffolded | Store and UI tests |

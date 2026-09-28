@@ -68,7 +68,8 @@ private func numericAddress(address: UnsafePointer<sockaddr>) -> String? {
         : socklen_t(MemoryLayout<sockaddr_in6>.size)
     let result = getnameinfo(address, length, &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST)
     guard result == 0 else { return nil }
-    return String(cString: host)
+    let bytes = host.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+    return String(decoding: bytes, as: UTF8.self)
 }
 
 private func macAddress(address: UnsafePointer<sockaddr>) -> String? {

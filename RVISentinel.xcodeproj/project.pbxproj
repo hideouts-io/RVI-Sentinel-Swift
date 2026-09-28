@@ -7,17 +7,23 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0CF7650CC9A6E9CDE7C667C2 /* AnalysisModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C68087EA88289F045E7D5C0 /* AnalysisModels.swift */; };
 		0EDE72EF8354DB0D96FD7CF0 /* EvidenceModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B940C2559CBC8D7D61E459A7 /* EvidenceModelTests.swift */; };
 		115A77B0D33B7B3109206406 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBF1D9AD1DED359B23829509 /* Models.swift */; };
+		14D99F45D23744018673AE2D /* PacketAnalysisTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF960F372B648683B742318A /* PacketAnalysisTests.swift */; };
+		2132201F9EED35234E8DE93F /* ProcessRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F404B04DD5D0C8C7179599F2 /* ProcessRunnerTests.swift */; };
 		47F2653E2EEE1D3D9463056C /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55B5AFD806807A546D19AC40 /* SetupView.swift */; };
 		5B611AA566E72D3315C09FA6 /* CaptureCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28CB418EB7C6E349E31E4461 /* CaptureCoordinatorTests.swift */; };
 		6B388F6B8EC16954F9A4931E /* CaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4225A3CF468BB6149F488EF4 /* CaptureCoordinator.swift */; };
 		708D641E6FD7EE3E83EFEBE2 /* DeviceCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E752ECD486FD58AE3403F50 /* DeviceCaptureView.swift */; };
+		787DAF5D9FC8BED46E785613 /* TSharkAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 828B4EF968437EAA6B900471 /* TSharkAnalyzer.swift */; };
 		9611D3EA8A2AD7CC4D35571A /* DeviceDiscoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DEDBF14408432BC9F12974C /* DeviceDiscoveryTests.swift */; };
+		98C68633055049950ECE2A58 /* AnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5496AC88ADF148248FD9F71 /* AnalysisView.swift */; };
 		9B4AD5169DB5BB08A127C1B5 /* RVISentinelApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4478C503966BC616A4014D05 /* RVISentinelApp.swift */; };
 		B01433A865EAD022BDD950B9 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33314A0C217F166BC5BD5CF4 /* AppState.swift */; };
 		B4D10559ED87579C19204AD6 /* InterfaceInventoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40DCABBFE6EA22A033A3629 /* InterfaceInventoryTests.swift */; };
 		B6CB983C1E5788544A0E77C3 /* InterfaceInventoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27ECFF18CEE0EA781EDFE83E /* InterfaceInventoryView.swift */; };
+		DA1DACAE867D118496673D00 /* PacketAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = C41CE09F044138B5FD3908C4 /* PacketAnalysis.swift */; };
 		DFAEB410FCC1F0AE3C594ACB /* ProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A73E2C35B75D873CE42E182 /* ProcessRunner.swift */; };
 		E2564FDA77E3D506E80A84B5 /* InterfaceInventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18D68013F8E9905EB7B4A6F0 /* InterfaceInventory.swift */; };
 		E657459C016F0131D5D2CB66 /* SetupChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D88C34D632EE2DF822D77EE /* SetupChecker.swift */; };
@@ -48,11 +54,17 @@
 		4478C503966BC616A4014D05 /* RVISentinelApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RVISentinelApp.swift; sourceTree = "<group>"; };
 		55B5AFD806807A546D19AC40 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		659D79CB0BDAA006408733B9 /* DeviceDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscovery.swift; sourceTree = "<group>"; };
+		7C68087EA88289F045E7D5C0 /* AnalysisModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisModels.swift; sourceTree = "<group>"; };
+		828B4EF968437EAA6B900471 /* TSharkAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TSharkAnalyzer.swift; sourceTree = "<group>"; };
 		8A73E2C35B75D873CE42E182 /* ProcessRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunner.swift; sourceTree = "<group>"; };
 		A40DCABBFE6EA22A033A3629 /* InterfaceInventoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterfaceInventoryTests.swift; sourceTree = "<group>"; };
+		AF960F372B648683B742318A /* PacketAnalysisTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketAnalysisTests.swift; sourceTree = "<group>"; };
 		B940C2559CBC8D7D61E459A7 /* EvidenceModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceModelTests.swift; sourceTree = "<group>"; };
 		B9C97B324FBAB8B06FCD86FC /* RVISentinel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RVISentinel.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBF1D9AD1DED359B23829509 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		C41CE09F044138B5FD3908C4 /* PacketAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketAnalysis.swift; sourceTree = "<group>"; };
+		C5496AC88ADF148248FD9F71 /* AnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisView.swift; sourceTree = "<group>"; };
+		F404B04DD5D0C8C7179599F2 /* ProcessRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunnerTests.swift; sourceTree = "<group>"; };
 		FB4F8F104268625F9CC8E111 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -69,6 +81,8 @@
 		4D60A5A55515CCD5854C65CE /* RVISentinel */ = {
 			isa = PBXGroup;
 			children = (
+				7C68087EA88289F045E7D5C0 /* AnalysisModels.swift */,
+				C5496AC88ADF148248FD9F71 /* AnalysisView.swift */,
 				33314A0C217F166BC5BD5CF4 /* AppState.swift */,
 				4225A3CF468BB6149F488EF4 /* CaptureCoordinator.swift */,
 				FB4F8F104268625F9CC8E111 /* ContentView.swift */,
@@ -77,10 +91,12 @@
 				18D68013F8E9905EB7B4A6F0 /* InterfaceInventory.swift */,
 				27ECFF18CEE0EA781EDFE83E /* InterfaceInventoryView.swift */,
 				BBF1D9AD1DED359B23829509 /* Models.swift */,
+				C41CE09F044138B5FD3908C4 /* PacketAnalysis.swift */,
 				8A73E2C35B75D873CE42E182 /* ProcessRunner.swift */,
 				4478C503966BC616A4014D05 /* RVISentinelApp.swift */,
 				0D88C34D632EE2DF822D77EE /* SetupChecker.swift */,
 				55B5AFD806807A546D19AC40 /* SetupView.swift */,
+				828B4EF968437EAA6B900471 /* TSharkAnalyzer.swift */,
 			);
 			path = RVISentinel;
 			sourceTree = "<group>";
@@ -109,6 +125,8 @@
 				3DEDBF14408432BC9F12974C /* DeviceDiscoveryTests.swift */,
 				B940C2559CBC8D7D61E459A7 /* EvidenceModelTests.swift */,
 				A40DCABBFE6EA22A033A3629 /* InterfaceInventoryTests.swift */,
+				AF960F372B648683B742318A /* PacketAnalysisTests.swift */,
+				F404B04DD5D0C8C7179599F2 /* ProcessRunnerTests.swift */,
 			);
 			path = RVISentinelTests;
 			sourceTree = "<group>";
@@ -201,6 +219,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0CF7650CC9A6E9CDE7C667C2 /* AnalysisModels.swift in Sources */,
+				98C68633055049950ECE2A58 /* AnalysisView.swift in Sources */,
 				B01433A865EAD022BDD950B9 /* AppState.swift in Sources */,
 				6B388F6B8EC16954F9A4931E /* CaptureCoordinator.swift in Sources */,
 				F6A3BAAE08EB92E9A7FD56C6 /* ContentView.swift in Sources */,
@@ -209,10 +229,12 @@
 				E2564FDA77E3D506E80A84B5 /* InterfaceInventory.swift in Sources */,
 				B6CB983C1E5788544A0E77C3 /* InterfaceInventoryView.swift in Sources */,
 				115A77B0D33B7B3109206406 /* Models.swift in Sources */,
+				DA1DACAE867D118496673D00 /* PacketAnalysis.swift in Sources */,
 				DFAEB410FCC1F0AE3C594ACB /* ProcessRunner.swift in Sources */,
 				9B4AD5169DB5BB08A127C1B5 /* RVISentinelApp.swift in Sources */,
 				E657459C016F0131D5D2CB66 /* SetupChecker.swift in Sources */,
 				47F2653E2EEE1D3D9463056C /* SetupView.swift in Sources */,
+				787DAF5D9FC8BED46E785613 /* TSharkAnalyzer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -224,6 +246,8 @@
 				9611D3EA8A2AD7CC4D35571A /* DeviceDiscoveryTests.swift in Sources */,
 				0EDE72EF8354DB0D96FD7CF0 /* EvidenceModelTests.swift in Sources */,
 				B4D10559ED87579C19204AD6 /* InterfaceInventoryTests.swift in Sources */,
+				14D99F45D23744018673AE2D /* PacketAnalysisTests.swift in Sources */,
+				2132201F9EED35234E8DE93F /* ProcessRunnerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

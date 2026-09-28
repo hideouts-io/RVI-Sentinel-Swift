@@ -9,6 +9,7 @@ struct ProcessResult: Sendable {
 enum ProcessRunnerError: LocalizedError {
     case executableMissing(String)
     case launchFailed(executable: String, reason: String)
+    case pipeClosureFailed(executable: String, stream: String, reason: String)
     case invalidUTF8(executable: String, stream: String)
 
     var errorDescription: String? {
@@ -17,6 +18,8 @@ enum ProcessRunnerError: LocalizedError {
             "Required executable is missing or not executable: \(path)"
         case let .launchFailed(executable, reason):
             "Could not launch \(executable): \(reason)"
+        case let .pipeClosureFailed(executable, stream, reason):
+            "Could not close the parent-side \(stream) pipe for \(executable): \(reason)"
         case let .invalidUTF8(executable, stream):
             "\(executable) returned non-UTF-8 data on \(stream)."
         }
@@ -44,13 +47,25 @@ struct ProcessRunner: Sendable {
                     reason: error.localizedDescription
                 )
             }
+            do {
+                try outputPipe.fileHandleForWriting.close()
+                try errorPipe.fileHandleForWriting.close()
+            } catch {
+                process.terminate()
+                throw ProcessRunnerError.pipeClosureFailed(
+                    executable: executableURL.path,
+                    stream: "stdout or stderr",
+                    reason: error.localizedDescription
+                )
+            }
+            async let outputData = readPipeToEnd(outputPipe)
+            async let errorData = readPipeToEnd(errorPipe)
             process.waitUntilExit()
-            let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: outputData, encoding: .utf8) else {
+            let (capturedOutput, capturedError) = await (outputData, errorData)
+            guard let output = String(data: capturedOutput, encoding: .utf8) else {
                 throw ProcessRunnerError.invalidUTF8(executable: executableURL.path, stream: "stdout")
             }
-            guard let error = String(data: errorData, encoding: .utf8) else {
+            guard let error = String(data: capturedError, encoding: .utf8) else {
                 throw ProcessRunnerError.invalidUTF8(executable: executableURL.path, stream: "stderr")
             }
             return ProcessResult(
@@ -60,4 +75,10 @@ struct ProcessRunner: Sendable {
             )
         }.value
     }
+}
+
+func readPipeToEnd(_ pipe: Pipe) async -> Data {
+    await Task.detached(priority: .userInitiated) {
+        pipe.fileHandleForReading.readDataToEndOfFile()
+    }.value
 }
