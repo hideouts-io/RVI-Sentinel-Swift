@@ -55,6 +55,8 @@ The Swift capture path is enabled, but physical-device verification remains a re
 
 The native decoder uses current `tshark` as an explicit external dependency because it supplies maintained protocol dissectors. The Swift adapter reads the installed field catalog, requests only supported fields, validates streamed rows, retains unknown traffic as endpoint/port/timing/volume metadata, and records unsupported fields as coverage—not as negative evidence. Protocol-specific reducers remain pure functions over typed decoded packets.
 
+The Protocol Details view preserves counted field evidence for Ethernet/VLAN, ARP, IPv4/IPv6 and ICMP, TCP/UDP analysis, DNS-family naming, DHCP, TLS/certificates, HTTP/2, QUIC, STUN/TURN, DTLS, RTP/RTCP, SMB, SSH, NTP, ESP, and WireGuard when the installed TShark exposes those fields. Distinct values are bounded per field to protect memory on large captures; the report adds an explicit omission row when that limit is reached instead of silently presenting the list as complete.
+
 Hostname observations are separate records keyed by hostname, related address, and provenance. Captured DNS, mDNS, DNS-SD, TLS SNI, HTTP Host, HTTP/2 authority, QUIC/HTTP/3 handshake evidence, certificate identities, and captured PTR records remain distinguishable. Active reverse lookup is disabled by default and will require explicit authorization because it generates traffic and discloses investigated addresses to the configured resolver.
 
 Ordinary PCAP and RVI traffic does not inherently contain an iOS process name. The native app displays **Process not observable from this capture** unless a supported flow-ownership API, Network Extension record, PKTAP metadata, or authorized device diagnostic provides direct ownership evidence. Port, hostname, and vendor guesses are prohibited.
@@ -88,7 +90,7 @@ Status meanings: **Implemented** is buildable native behavior with automated tes
 | Partial-success cleanup semantics | Yes | Implemented | Forced cleanup failure |
 | Completion card | Yes | Implemented | UI and real capture |
 | Core endpoint/DNS/TLS/port analysis | Yes | Implemented native streaming core | Synthetic capture parity and large capture |
-| Comprehensive protocol decoders | No | Field registry and protocol inventory implemented; detail decoders partial | Per-protocol synthetic captures |
+| Comprehensive protocol decoders | No | Typed detail extraction covers supported Ethernet, IP, transport, naming, handshake, web, NAT traversal, media, file-sharing, clock, and tunnel fields; complete fixtures remain pending | Per-protocol synthetic captures |
 | Unknown traffic representation | No | Implemented at flow/endpoint/port/size level | Synthetic unknown-IP-protocol fixture |
 | Hostname provenance | Partial | Implemented for captured DNS, PTR, TLS SNI, HTTP Host, and HTTP/2 authority | Decoder fixtures and UI |
 | Active resolution disabled by default | No | Implemented for native analysis; opt-in enrichment pending | Consent UI and network test |

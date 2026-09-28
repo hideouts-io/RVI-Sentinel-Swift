@@ -50,6 +50,7 @@ struct ReportExporter: Sendable {
                 ("endpoints.csv", endpointsCSV(document.endpoints)),
                 ("hostnames.csv", hostnamesCSV(document.hostnames)),
                 ("protocols.csv", protocolsCSV(document.protocols)),
+                ("protocol-details.csv", protocolDetailsCSV(document.protocolDetails)),
                 ("ports.csv", portsCSV(document.ports)),
                 ("coverage.csv", coverageCSV(document.coverage))
             ]
@@ -164,6 +165,22 @@ func protocolsCSV(_ protocols: [ProtocolObservation]) -> String {
     return ([header] + rows).joined(separator: "\n") + "\n"
 }
 
+func protocolDetailsCSV(_ details: [ProtocolDetailObservation]) -> String {
+    let header = csvRow(["protocol", "category", "label", "tshark_field", "observed_value", "occurrence_count", "evidence_boundary"])
+    let rows = details.map { detail in
+        csvRow([
+            detail.protocolKind.rawValue,
+            detail.category,
+            detail.label,
+            detail.field.rawValue,
+            detail.value,
+            String(detail.occurrenceCount),
+            detail.evidenceBoundary
+        ])
+    }
+    return ([header] + rows).joined(separator: "\n") + "\n"
+}
+
 func portsCSV(_ ports: [PortObservation]) -> String {
     let header = csvRow(["transport", "port", "observed_packets", "standard_service", "usual_purpose", "evidence_boundary"])
     let rows = ports.map { port in
@@ -197,6 +214,9 @@ func htmlReport(document: AnalysisExportDocument) -> String {
     let ports = document.ports.map { port in
         "<tr><td>\(htmlEscape(port.transport))</td><td>\(port.port)</td><td>\(htmlEscape(port.standardService))</td><td>\(htmlEscape(port.explanation))</td><td>\(htmlEscape(port.evidenceBoundary))</td></tr>"
     }.joined(separator: "\n")
+    let protocolDetails = document.protocolDetails.map { detail in
+        "<tr><td>\(htmlEscape(detail.protocolKind.rawValue))</td><td>\(htmlEscape(detail.category))</td><td>\(htmlEscape(detail.label))</td><td class=\"mono\">\(htmlEscape(detail.value))</td><td>\(detail.occurrenceCount)</td><td class=\"mono\">\(htmlEscape(detail.field.rawValue))</td><td>\(htmlEscape(detail.evidenceBoundary))</td></tr>"
+    }.joined(separator: "\n")
     let limitations = document.coverage.limitations.map { "<li>\(htmlEscape($0))</li>" }.joined(separator: "\n")
     return """
     <!doctype html>
@@ -209,6 +229,7 @@ func htmlReport(document: AnalysisExportDocument) -> String {
     <h2>Endpoints</h2><table><thead><tr><th>Address</th><th>Scope</th><th>Source packets</th><th>Destination packets</th><th>Protocols</th><th>Process</th></tr></thead><tbody>\(endpoints)</tbody></table>
     <h2>Hostname evidence</h2><table><thead><tr><th>Hostname</th><th>Related IP</th><th>Provenance</th><th>Confidence</th></tr></thead><tbody>\(hostnames)</tbody></table>
     <h2>Protocols</h2><table><thead><tr><th>Protocol</th><th>Packets</th><th>Bytes</th><th>Identification evidence</th></tr></thead><tbody>\(protocols)</tbody></table>
+    <h2>Protocol details</h2><table><thead><tr><th>Protocol</th><th>Category</th><th>Field</th><th>Observed value</th><th>Count</th><th>Evidence source</th><th>Limit</th></tr></thead><tbody>\(protocolDetails)</tbody></table>
     <h2>Ports</h2><table><thead><tr><th>Transport</th><th>Port</th><th>Usual service</th><th>Usual purpose</th><th>Evidence limit</th></tr></thead><tbody>\(ports)</tbody></table>
     <h2>Coverage and limitations</h2><p>\(htmlEscape(document.coverage.tsharkVersion))</p><ul>\(limitations)</ul>
     </body></html>

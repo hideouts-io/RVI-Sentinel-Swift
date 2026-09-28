@@ -40,8 +40,8 @@ final class ReportExporterTests: XCTestCase {
         decoder.dateDecodingStrategy = .iso8601
         let manifest = try decoder.decode(ExportManifest.self, from: Data(contentsOf: manifestURL))
 
-        XCTAssertEqual(Set(manifest.files.map(\.filename)), ["coverage.csv", "endpoints.csv", "hostnames.csv", "ports.csv", "protocols.csv"])
-        XCTAssertEqual(receipt.fileCount, 6)
+        XCTAssertEqual(Set(manifest.files.map(\.filename)), ["coverage.csv", "endpoints.csv", "hostnames.csv", "ports.csv", "protocol-details.csv", "protocols.csv"])
+        XCTAssertEqual(receipt.fileCount, 7)
         XCTAssertEqual(receipt.sha256, try sha256(url: manifestURL))
         XCTAssertTrue(manifest.files.allSatisfy { !$0.sha256.isEmpty })
     }

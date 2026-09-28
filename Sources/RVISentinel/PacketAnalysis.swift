@@ -25,6 +25,22 @@ private struct PortAccumulator {
     var packetCount: Int
 }
 
+private struct ProtocolDetailAccumulator {
+    let protocolKind: ProtocolKind
+    let category: String
+    let label: String
+    let field: TSharkField
+    let value: String
+    var occurrenceCount: Int
+}
+
+private struct ProtocolFieldKey: Hashable {
+    let protocolKind: ProtocolKind
+    let field: TSharkField
+}
+
+let protocolDetailMaximumDistinctValuesPerField = 250
+
 struct AnalysisAccumulator {
     private(set) var packetCount = 0
     private(set) var byteCount: Int64 = 0
@@ -35,6 +51,10 @@ struct AnalysisAccumulator {
     private var hostnameEvidence: [String: HostnameEvidence] = [:]
     private var protocols: [ProtocolKind: ProtocolAccumulator] = [:]
     private var ports: [String: PortAccumulator] = [:]
+    private var protocolDetails: [String: ProtocolDetailAccumulator] = [:]
+    private var protocolDetailDistinctCounts: [ProtocolFieldKey: Int] = [:]
+    private var omittedProtocolDetailOccurrences: [ProtocolFieldKey: Int] = [:]
+    private var protocolDetailDefinitions: [ProtocolFieldKey: ProtocolDetailDefinition] = [:]
 
     mutating func consume(packet: DecodedPacket) throws {
         guard let timestampText = packet.first(.frameTimeEpoch),
@@ -60,6 +80,7 @@ struct AnalysisAccumulator {
             accumulator.evidence.formUnion(protocolEvidence(packet: packet, protocolKind: protocolKind))
             protocols[protocolKind] = accumulator
         }
+        addProtocolDetails(packet: packet, observedProtocols: observedProtocols)
 
         let sourceAddress = packet.first(.ipv4Source) ?? packet.first(.ipv6Source)
         let destinationAddress = packet.first(.ipv4Destination) ?? packet.first(.ipv6Destination)
@@ -133,6 +154,35 @@ struct AnalysisAccumulator {
         portRows.sort { left, right in
             left.packetCount == right.packetCount ? left.port < right.port : left.packetCount > right.packetCount
         }
+        var detailRows = protocolDetails.values.map { value in
+            ProtocolDetailObservation(
+                protocolKind: value.protocolKind,
+                category: value.category,
+                label: value.label,
+                field: value.field,
+                value: value.value,
+                occurrenceCount: value.occurrenceCount,
+                evidenceBoundary: protocolDetailEvidenceBoundary(protocolKind: value.protocolKind)
+            )
+        }
+        for (key, omittedCount) in omittedProtocolDetailOccurrences {
+            guard let definition = protocolDetailDefinitions[key] else { continue }
+            detailRows.append(ProtocolDetailObservation(
+                protocolKind: definition.protocolKind,
+                category: definition.category,
+                label: definition.label,
+                field: key.field,
+                value: "Additional distinct values omitted after the per-field limit of \(protocolDetailMaximumDistinctValuesPerField)",
+                occurrenceCount: omittedCount,
+                evidenceBoundary: "The detail list is bounded to protect memory on large captures; aggregate protocol, endpoint, packet, and byte counts remain available."
+            ))
+        }
+        detailRows.sort { left, right in
+            if left.protocolKind != right.protocolKind { return left.protocolKind.rawValue < right.protocolKind.rawValue }
+            if left.label != right.label { return left.label < right.label }
+            if left.occurrenceCount != right.occurrenceCount { return left.occurrenceCount > right.occurrenceCount }
+            return left.value < right.value
+        }
         return NativeAnalysisResult(
             summary: AnalysisSummary(
                 captureURL: captureURL,
@@ -146,9 +196,40 @@ struct AnalysisAccumulator {
             endpoints: endpointRows,
             hostnames: hostnameEvidence.values.sorted { $0.firstSeen == $1.firstSeen ? $0.hostname < $1.hostname : $0.firstSeen < $1.firstSeen },
             protocols: protocolRows,
+            protocolDetails: detailRows,
             ports: portRows,
             coverage: coverage
         )
+    }
+
+    private mutating func addProtocolDetails(packet: DecodedPacket, observedProtocols: Set<ProtocolKind>) {
+        for field in TSharkField.allCases {
+            guard let definition = protocolDetailDefinition(field: field, observedProtocols: observedProtocols) else { continue }
+            for value in packet.all(field) where !value.isEmpty {
+                let key = "\(definition.protocolKind.rawValue)|\(field.rawValue)|\(value)"
+                if var existing = protocolDetails[key] {
+                    existing.occurrenceCount += 1
+                    protocolDetails[key] = existing
+                    continue
+                }
+                let fieldKey = ProtocolFieldKey(protocolKind: definition.protocolKind, field: field)
+                protocolDetailDefinitions[fieldKey] = definition
+                let distinctCount = protocolDetailDistinctCounts[fieldKey] ?? 0
+                guard distinctCount < protocolDetailMaximumDistinctValuesPerField else {
+                    omittedProtocolDetailOccurrences[fieldKey, default: 0] += 1
+                    continue
+                }
+                protocolDetails[key] = ProtocolDetailAccumulator(
+                    protocolKind: definition.protocolKind,
+                    category: definition.category,
+                    label: definition.label,
+                    field: field,
+                    value: value,
+                    occurrenceCount: 1
+                )
+                protocolDetailDistinctCounts[fieldKey] = distinctCount + 1
+            }
+        }
     }
 
     private mutating func updateEndpoint(
@@ -325,7 +406,8 @@ func protocolKind(token: String) -> ProtocolKind? {
     case "http3": .http3
     case "quic": .quic
     case "stun": .stun
-    case "turnchannel": .turn
+    case "turnchannel", "turn": .turn
+    case "webrtc": .webRTC
     case "dtls": .dtls
     case "rtp": .rtp
     case "rtcp": .rtcp
@@ -333,9 +415,11 @@ func protocolKind(token: String) -> ProtocolKind? {
     case "smb", "smb2": .smb
     case "ntp": .ntp
     case "ssdp": .ssdp
+    case "upnp": .upnp
     case "xml": nil
     case "llmnr": .llmnr
     case "esp", "isakmp": .esp
+    case "wg", "wireguard": .wireGuard
     case "websocket": .websocket
     case "sctp": .sctp
     case "gre": .gre

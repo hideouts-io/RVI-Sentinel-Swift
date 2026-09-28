@@ -47,6 +47,7 @@ struct AnalysisView: View {
         case .endpoints: EndpointResultsView(endpoints: result.endpoints)
         case .hostnames: HostnameResultsView(hostnames: result.hostnames)
         case .protocols: ProtocolResultsView(protocols: result.protocols)
+        case .details: ProtocolDetailResultsView(details: result.protocolDetails)
         case .ports: PortResultsView(ports: result.ports)
         case .coverage: CoverageView(coverage: result.coverage)
         }
@@ -58,6 +59,7 @@ private enum ResultTab: String, CaseIterable, Identifiable {
     case endpoints = "Endpoints"
     case hostnames = "Hostnames"
     case protocols = "Protocols"
+    case details = "Protocol Details"
     case ports = "Ports"
     case coverage = "Coverage"
 
@@ -159,6 +161,30 @@ struct ProtocolResultsView: View {
             TableColumn("Packets") { Text($0.packetCount.formatted()).monospacedDigit() }.width(90)
             TableColumn("Bytes") { Text(ByteCountFormatter.string(fromByteCount: $0.byteCount, countStyle: .file)) }.width(90)
             TableColumn("Identification evidence") { Text($0.identification).foregroundStyle(.secondary) }
+        }
+    }
+}
+
+struct ProtocolDetailResultsView: View {
+    let details: [ProtocolDetailObservation]
+
+    var body: some View {
+        if details.isEmpty {
+            ContentUnavailableView(
+                "No supported protocol details were decoded",
+                systemImage: "list.bullet.rectangle",
+                description: Text("Review Coverage to see which TShark fields are supported. Missing metadata is not proof that an activity did not occur.")
+            )
+        } else {
+            Table(details) {
+                TableColumn("Protocol") { Text($0.protocolKind.rawValue).font(.headline) }.width(min: 110, ideal: 150)
+                TableColumn("Category") { Text($0.category) }.width(min: 110, ideal: 150)
+                TableColumn("Field") { Text($0.label) }.width(min: 130, ideal: 190)
+                TableColumn("Observed value") { Text($0.value).font(.body.monospaced()).textSelection(.enabled) }.width(min: 160, ideal: 260)
+                TableColumn("Count") { Text($0.occurrenceCount.formatted()).monospacedDigit() }.width(70)
+                TableColumn("Evidence source") { Text($0.field.rawValue).font(.caption.monospaced()) }.width(min: 130, ideal: 190)
+                TableColumn("Limit") { Text($0.evidenceBoundary).foregroundStyle(.secondary) }.width(min: 220, ideal: 300)
+            }
         }
     }
 }

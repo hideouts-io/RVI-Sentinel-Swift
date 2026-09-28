@@ -79,9 +79,21 @@ enum TSharkField: String, CaseIterable, Codable, Sendable {
     case ipv6Destination = "ipv6.dst"
     case ipv6HopLimit = "ipv6.hlim"
     case ipv6NextHeader = "ipv6.nxt"
+    case icmpType = "icmp.type"
+    case icmpCode = "icmp.code"
+    case icmpv6Type = "icmpv6.type"
+    case icmpv6Code = "icmpv6.code"
+    case icmpv6NeighborSolicitationTarget = "icmpv6.nd.ns.target_address"
+    case icmpv6NeighborAdvertisementTarget = "icmpv6.nd.na.target_address"
+    case icmpv6RouterLifetime = "icmpv6.nd.ra.router_lifetime"
     case tcpSourcePort = "tcp.srcport"
     case tcpDestinationPort = "tcp.dstport"
     case tcpFlags = "tcp.flags"
+    case tcpSequence = "tcp.seq"
+    case tcpAcknowledgment = "tcp.ack"
+    case tcpPayloadLength = "tcp.len"
+    case tcpWindowSize = "tcp.window_size_value"
+    case tcpReset = "tcp.flags.reset"
     case tcpStream = "tcp.stream"
     case tcpRTT = "tcp.analysis.ack_rtt"
     case tcpRetransmission = "tcp.analysis.retransmission"
@@ -90,6 +102,7 @@ enum TSharkField: String, CaseIterable, Codable, Sendable {
     case tcpZeroWindow = "tcp.analysis.zero_window"
     case udpSourcePort = "udp.srcport"
     case udpDestinationPort = "udp.dstport"
+    case udpLength = "udp.length"
     case udpStream = "udp.stream"
     case dnsQueryName = "dns.qry.name"
     case dnsResponseName = "dns.resp.name"
@@ -100,6 +113,11 @@ enum TSharkField: String, CaseIterable, Codable, Sendable {
     case dnsRecordType = "dns.qry.type"
     case dnsResponseCode = "dns.flags.rcode"
     case dnsTTL = "dns.resp.ttl"
+    case dhcpMessageType = "dhcp.option.dhcp"
+    case dhcpAssignedAddress = "dhcp.ip.your"
+    case dhcpServerIdentifier = "dhcp.option.dhcp_server_id"
+    case dhcpv6MessageType = "dhcpv6.msgtype"
+    case dhcpv6ClientIdentifier = "dhcpv6.duid.bytes"
     case tlsSNI = "tls.handshake.extensions_server_name"
     case tlsVersion = "tls.handshake.version"
     case tlsCipherSuite = "tls.handshake.ciphersuite"
@@ -107,6 +125,7 @@ enum TSharkField: String, CaseIterable, Codable, Sendable {
     case certificateSubject = "x509sat.uTF8String"
     case certificateIssuer = "x509if.rdnSequence"
     case certificateSerial = "x509af.serialNumber"
+    case certificateDNSName = "x509ce.dNSName"
     case httpHost = "http.host"
     case httpMethod = "http.request.method"
     case httpURI = "http.request.uri"
@@ -115,19 +134,35 @@ enum TSharkField: String, CaseIterable, Codable, Sendable {
     case http2Authority = "http2.headers.authority"
     case http2Stream = "http2.streamid"
     case http2Type = "http2.type"
+    case http2Method = "http2.headers.method"
+    case http2Path = "http2.headers.path"
+    case http2Status = "http2.headers.status"
     case quicVersion = "quic.version"
     case quicDestinationConnectionID = "quic.dcid"
     case quicSourceConnectionID = "quic.scid"
+    case quicPacketNumber = "quic.packet_number"
     case stunType = "stun.type"
     case stunMappedAddress = "stun.att.ipv4"
+    case stunMappedIPv6Address = "stun.att.ipv6"
+    case stunUsername = "stun.att.username"
+    case turnChannelNumber = "turnchannel.id"
     case dtlsVersion = "dtls.handshake.version"
+    case dtlsCipherSuite = "dtls.handshake.ciphersuite"
     case rtpSSRC = "rtp.ssrc"
     case rtpSequence = "rtp.seq"
-    case rtcpType = "rtcp.packet_type"
+    case rtpTimestamp = "rtp.timestamp"
+    case rtpPayloadType = "rtp.p_type"
+    case rtcpType = "rtcp.pt"
+    case rtcpSSRC = "rtcp.senderssrc"
     case smbCommand = "smb2.cmd"
+    case smbFilename = "smb2.filename"
     case sshProtocol = "ssh.protocol"
     case ntpReference = "ntp.refid"
+    case ntpStratum = "ntp.stratum"
     case espSPI = "esp.spi"
+    case espSequence = "esp.sequence"
+    case wireGuardMessageType = "wg.type"
+    case wireGuardReceiver = "wg.receiver"
 
     static let required: Set<TSharkField> = [.frameNumber, .frameTimeEpoch, .frameLength, .frameProtocols]
 }
@@ -170,6 +205,18 @@ struct ProtocolObservation: Identifiable, Codable, Equatable, Sendable {
     var id: ProtocolKind { protocolKind }
 }
 
+struct ProtocolDetailObservation: Identifiable, Codable, Equatable, Sendable {
+    let protocolKind: ProtocolKind
+    let category: String
+    let label: String
+    let field: TSharkField
+    let value: String
+    let occurrenceCount: Int
+    let evidenceBoundary: String
+
+    var id: String { "\(protocolKind.rawValue)|\(field.rawValue)|\(value)" }
+}
+
 struct PortObservation: Identifiable, Codable, Equatable, Sendable {
     let transport: String
     let port: Int
@@ -204,6 +251,7 @@ struct NativeAnalysisResult: Codable, Equatable, Sendable {
     let endpoints: [EndpointObservation]
     let hostnames: [HostnameEvidence]
     let protocols: [ProtocolObservation]
+    let protocolDetails: [ProtocolDetailObservation]
     let ports: [PortObservation]
     let coverage: AnalysisCoverage
 }

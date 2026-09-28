@@ -45,6 +45,17 @@ func makeSyntheticAnalysisResult(captureURL: URL, hash: String) -> NativeAnalysi
         protocols: [
             ProtocolObservation(protocolKind: .tls, packetCount: 4, byteCount: 512, identification: "captured ClientHello SNI")
         ],
+        protocolDetails: [
+            ProtocolDetailObservation(
+                protocolKind: .tls,
+                category: "Handshake",
+                label: "TLS version",
+                field: .tlsVersion,
+                value: "0x0304",
+                occurrenceCount: 1,
+                evidenceBoundary: "Handshake or tunnel metadata is visible; encrypted application payloads remain protected."
+            )
+        ],
         ports: [
             PortObservation(
                 transport: "TCP",

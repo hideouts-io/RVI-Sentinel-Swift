@@ -25,6 +25,7 @@ struct AnalysisExportDocument: Codable, Equatable, Sendable {
     let endpoints: [EndpointObservation]
     let hostnames: [HostnameEvidence]
     let protocols: [ProtocolObservation]
+    let protocolDetails: [ProtocolDetailObservation]
     let ports: [PortObservation]
     let coverage: AnalysisCoverage
     let evidenceBoundary: String
@@ -73,7 +74,7 @@ enum ReportExporterError: LocalizedError {
 
 func makeExportDocument(result: NativeAnalysisResult, generatedAt: Date) -> AnalysisExportDocument {
     AnalysisExportDocument(
-        schemaVersion: 1,
+        schemaVersion: 2,
         generatedAt: generatedAt,
         capture: ExportCaptureProvenance(
             sourceFilename: result.summary.captureURL.lastPathComponent,
@@ -87,6 +88,7 @@ func makeExportDocument(result: NativeAnalysisResult, generatedAt: Date) -> Anal
         endpoints: result.endpoints,
         hostnames: result.hostnames,
         protocols: result.protocols,
+        protocolDetails: result.protocolDetails,
         ports: result.ports,
         coverage: result.coverage,
         evidenceBoundary: "A new observation is a change to investigate, not proof of malicious activity. Ordinary PCAP/RVI traffic does not prove an iOS process or internal iOS interface."

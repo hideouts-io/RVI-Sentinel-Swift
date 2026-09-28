@@ -38,6 +38,64 @@ final class PacketAnalysisTests: XCTestCase {
         XCTAssertEqual(Set(result.hostnames.map(\.provenance)), [.capturedDNSAnswer, .tlsSNI])
         XCTAssertTrue(result.endpoints.allSatisfy { $0.processAttribution.confidence == .unavailable })
         XCTAssertEqual(result.ports.first { $0.port == 443 }?.standardService, "HTTPS")
+        XCTAssertTrue(result.protocolDetails.contains { detail in
+            detail.field == .tlsSNI && detail.value == "service.example" && detail.protocolKind == .tls
+        })
+    }
+
+    func testProtocolDetailsPreserveTypedFieldEvidenceAndCounts() throws {
+        var accumulator = AnalysisAccumulator()
+        let packet = DecodedPacket(values: [
+            .frameTimeEpoch: ["1700000000.0"],
+            .frameLength: ["120"],
+            .frameProtocols: ["eth:ip:tcp:tls"],
+            .tcpFlags: ["0x0018"],
+            .tcpRTT: ["0.042"],
+            .tlsVersion: ["0x0304"],
+            .tlsCipherSuite: ["0x1301"],
+            .tlsALPN: ["h2"]
+        ])
+        try accumulator.consume(packet: packet)
+        try accumulator.consume(packet: packet)
+
+        let result = accumulator.result(
+            captureURL: URL(fileURLWithPath: "/tmp/synthetic.pcap"),
+            hash: String(repeating: "a", count: 64),
+            coverage: AnalysisCoverage(
+                tsharkVersion: "synthetic",
+                supportedFields: TSharkField.allCases,
+                unsupportedFields: [],
+                activeResolutionEnabled: false,
+                limitations: []
+            )
+        )
+
+        XCTAssertEqual(result.protocolDetails.first { $0.field == .tlsVersion }?.occurrenceCount, 2)
+        XCTAssertEqual(result.protocolDetails.first { $0.field == .tcpRTT }?.protocolKind, .tcp)
+        XCTAssertEqual(result.protocolDetails.first { $0.field == .tlsALPN }?.label, "ALPN")
+        XCTAssertTrue(result.protocolDetails.allSatisfy { !$0.evidenceBoundary.isEmpty })
+    }
+
+    func testProtocolDetailCardinalityIsBoundedAndOmissionsAreExplicit() throws {
+        var accumulator = AnalysisAccumulator()
+        for sequence in 0..<(protocolDetailMaximumDistinctValuesPerField + 4) {
+            try accumulator.consume(packet: DecodedPacket(values: [
+                .frameTimeEpoch: [String(1_700_000_000 + sequence)],
+                .frameLength: ["80"],
+                .frameProtocols: ["ip:tcp"],
+                .tcpSequence: [String(sequence)]
+            ]))
+        }
+
+        let result = accumulator.result(
+            captureURL: URL(fileURLWithPath: "/tmp/synthetic.pcap"),
+            hash: String(repeating: "b", count: 64),
+            coverage: AnalysisCoverage(tsharkVersion: "synthetic", supportedFields: [.tcpSequence], unsupportedFields: [], activeResolutionEnabled: false, limitations: [])
+        )
+        let sequenceRows = result.protocolDetails.filter { $0.field == .tcpSequence }
+
+        XCTAssertEqual(sequenceRows.count, protocolDetailMaximumDistinctValuesPerField + 1)
+        XCTAssertEqual(sequenceRows.first { $0.value.contains("omitted") }?.occurrenceCount, 4)
     }
 
     func testCatalogFiltersOnlyFieldRecords() {

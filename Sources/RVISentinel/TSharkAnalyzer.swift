@@ -52,6 +52,7 @@ actor TSharkAnalyzer {
                 "Encrypted TLS, QUIC, VPN, SSH, and IPsec payloads remain unavailable unless separately and legitimately decrypted.",
                 "Ordinary PCAP/RVI traffic does not prove an iOS process owner or internal iOS interface.",
                 "Source and destination counts are packet directions, not automatically inbound or outbound relative to the phone.",
+                "Protocol detail values are bounded per TShark field to protect memory; any omitted distinct values are reported explicitly.",
                 "Active hostname and reverse-DNS lookup is disabled; no investigated address is sent to a resolver."
             ]
         )
