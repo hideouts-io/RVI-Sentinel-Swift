@@ -4,6 +4,7 @@ struct DeviceCaptureView: View {
     @EnvironmentObject private var appState: AppState
     @State private var durationSeconds = 60
     @State private var captureFormat = CaptureFormat.pcapng
+    let openAnalysis: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -88,14 +89,14 @@ struct DeviceCaptureView: View {
                 )
             }
             if let completion = appState.captureCompletion {
-                CaptureCompletionView(completion: completion)
+                CaptureCompletionView(completion: completion, openAnalysis: openAnalysis)
             }
             LimitationBanner()
         }
         .padding(28)
         .navigationTitle("Device & Capture")
         .task {
-            if appState.devices.isEmpty { await appState.refreshDevices() }
+            await appState.loadDevicesIfNeeded()
         }
     }
 }
@@ -172,6 +173,7 @@ struct CaptureStatusView: View {
 struct CaptureCompletionView: View {
     @EnvironmentObject private var appState: AppState
     let completion: CaptureCompletion
+    let openAnalysis: () -> Void
 
     var body: some View {
         GroupBox {
@@ -194,9 +196,12 @@ struct CaptureCompletionView: View {
                 }
                 .textSelection(.enabled)
                 HStack {
-                    Button("Analyze") { appState.prepareCompletedCaptureForAnalysis() }
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityIdentifier(AccessibilityIdentifier.analyzeCompletedCapture.rawValue)
+                    Button("Analyze") {
+                        appState.prepareCompletedCaptureForAnalysis()
+                        openAnalysis()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier(AccessibilityIdentifier.analyzeCompletedCapture.rawValue)
                     Button("Open File Location") { appState.revealCapture() }
                         .accessibilityIdentifier(AccessibilityIdentifier.revealCompletedCapture.rawValue)
                     Button("Capture Again") { appState.clearCaptureCompletion() }

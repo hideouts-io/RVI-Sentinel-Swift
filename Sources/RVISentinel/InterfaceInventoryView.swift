@@ -2,6 +2,7 @@ import SwiftUI
 
 struct InterfaceInventoryView: View {
     @EnvironmentObject private var appState: AppState
+    let openAnalysis: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -10,7 +11,7 @@ struct InterfaceInventoryView: View {
                 Text("IPv4 and IPv6 hostname resolution is always enabled during analysis.")
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Open Analysis", systemImage: "waveform.path.ecg.rectangle") { appState.selectedSection = .analysis }
+                Button("Open Analysis", systemImage: "waveform.path.ecg.rectangle", action: openAnalysis)
                     .accessibilityIdentifier(AccessibilityIdentifier.openAnalysis.rawValue)
             }
             if appState.interfaces.isEmpty {

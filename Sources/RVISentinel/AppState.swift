@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class AppState: ObservableObject {
-    @Published var selectedSection: NavigationSection = .overview
     @Published private(set) var setupChecks: [SetupCheck] = []
     @Published private(set) var devices: [DeviceInfo] = []
     @Published private(set) var interfaces: [NetworkInterfaceInfo] = []
@@ -101,15 +100,30 @@ final class AppState: ObservableObject {
         isRefreshingDevices = true
         lastError = nil
         do {
-            devices = try await discoveryService.discover()
-            if selectedDevice == nil {
-                selectedDeviceIdentifier = devices.first(where: { $0.readiness == .ready })?.identifier
-            }
+            applyDiscoveredDevices(try await discoveryService.discover())
         } catch {
             devices = []
             lastError = error.localizedDescription
         }
         isRefreshingDevices = false
+    }
+
+    func loadDevicesIfNeeded() async {
+        guard devices.isEmpty else { return }
+        do {
+            applyDiscoveredDevices(try await discoveryService.discover())
+            lastError = nil
+        } catch {
+            devices = []
+            lastError = error.localizedDescription
+        }
+    }
+
+    private func applyDiscoveredDevices(_ discoveredDevices: [DeviceInfo]) {
+        devices = discoveredDevices
+        if selectedDevice == nil {
+            selectedDeviceIdentifier = discoveredDevices.first(where: { $0.readiness == .ready })?.identifier
+        }
     }
 
     func chooseOutputDirectory() {
@@ -191,7 +205,6 @@ final class AppState: ObservableObject {
         analysisResult = nil
         interfaces = []
         analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Ready to analyze the completed capture with IPv4 and IPv6 resolution enabled.")
-        selectedSection = .analysis
     }
 
     func chooseAnalysisCapture() {

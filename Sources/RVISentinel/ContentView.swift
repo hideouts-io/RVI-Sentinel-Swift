@@ -2,10 +2,11 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var selectedSection = NavigationSection.overview
 
     var body: some View {
         NavigationSplitView {
-            List(NavigationSection.allCases, selection: $appState.selectedSection) { section in
+            List(NavigationSection.allCases, selection: $selectedSection) { section in
                 Label(section.rawValue, systemImage: section.symbolName)
                     .tag(section)
                     .accessibilityIdentifier(section.accessibilityIdentifier)
@@ -13,15 +14,15 @@ struct ContentView: View {
             .navigationSplitViewColumnWidth(min: 190, ideal: 215)
         } detail: {
             Group {
-                switch appState.selectedSection {
+                switch selectedSection {
                 case .overview:
-                    OverviewView()
+                    OverviewView(selectSection: selectSection)
                 case .setup:
                     SetupView()
                 case .devices:
-                    DeviceCaptureView()
+                    DeviceCaptureView(openAnalysis: { selectSection(.analysis) })
                 case .interfaces:
-                    InterfaceInventoryView()
+                    InterfaceInventoryView(openAnalysis: { selectSection(.analysis) })
                 case .analysis:
                     AnalysisView()
                 case .baselines:
@@ -49,6 +50,10 @@ struct ContentView: View {
             Text(appState.lastError ?? "")
         }
     }
+
+    private func selectSection(_ section: NavigationSection) {
+        selectedSection = section
+    }
 }
 
 struct PageHeader: View {
@@ -73,7 +78,7 @@ struct PageHeader: View {
 }
 
 struct OverviewView: View {
-    @EnvironmentObject private var appState: AppState
+    let selectSection: (NavigationSection) -> Void
 
     var body: some View {
         ScrollView {
@@ -90,22 +95,22 @@ struct OverviewView: View {
 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 16)], spacing: 16) {
                     WorkflowCard(number: 1, title: "Check Setup", detail: "Verify the phone, USB trust, Apple capture tools, analysis backend, destination, disk space, and cleanup state.", symbol: "checkmark.shield") {
-                        appState.selectedSection = .setup
+                        selectSection(.setup)
                     }
                     WorkflowCard(number: 2, title: "Select Device", detail: "Choose a physical, booted iPhone or iPad paired over USB. The full device identifier stays hidden.", symbol: "iphone.gen3") {
-                        appState.selectedSection = .devices
+                        selectSection(.devices)
                     }
                     WorkflowCard(number: 3, title: "Review iOS Interfaces", detail: "Show only capture-reported interface labels that carried packets. Mac host interfaces are excluded.", symbol: "network") {
-                        appState.selectedSection = .interfaces
+                        selectSection(.interfaces)
                     }
                     WorkflowCard(number: 4, title: "Capture and Validate", detail: "Authorize the narrow capture operation, verify live packets, capture for a bounded duration, flush, validate, and clean up.", symbol: "record.circle") {
-                        appState.selectedSection = .devices
+                        selectSection(.devices)
                     }
                     WorkflowCard(number: 5, title: "Review Results", detail: "Separate direct packet evidence from inference and optional enrichment. Preserve hostname provenance.", symbol: "list.bullet.rectangle") {
-                        appState.selectedSection = .analysis
+                        selectSection(.analysis)
                     }
                     WorkflowCard(number: 6, title: "Baseline or Export", detail: "Analyze without changing a baseline, then explicitly add reviewed findings or export local reports.", symbol: "square.and.arrow.up") {
-                        appState.selectedSection = .baselines
+                        selectSection(.baselines)
                     }
                 }
                 LimitationBanner()
