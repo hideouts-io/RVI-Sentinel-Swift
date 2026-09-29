@@ -98,20 +98,20 @@ actor TSharkAnalyzer {
             }
         } catch {
             process.interrupt()
-            process.waitUntilExit()
+            _ = await waitForProcessExit(process)
             activeProcess = nil
             try? errorHandle.close()
             throw error
         }
-        process.waitUntilExit()
+        let termination = await waitForProcessExit(process)
         activeProcess = nil
         try errorHandle.close()
         let errorText = try String(contentsOf: errorURL, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard process.terminationStatus == 0 else {
-            if process.terminationReason == .uncaughtSignal {
+        guard termination.status == 0 else {
+            if termination.uncaughtSignal {
                 throw CancellationError()
             }
-            throw NativeAnalysisError.decodingFailed("tshark exit \(process.terminationStatus): \(errorText)")
+            throw NativeAnalysisError.decodingFailed("tshark exit \(termination.status): \(errorText)")
         }
         guard accumulator.packetCount > 0 else {
             throw NativeAnalysisError.invalidCapture("TShark decoded zero packets. The file may be empty, truncated, or unsupported.")

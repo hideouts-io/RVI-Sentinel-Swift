@@ -82,3 +82,13 @@ func readPipeToEnd(_ pipe: Pipe) async -> Data {
         pipe.fileHandleForReading.readDataToEndOfFile()
     }.value
 }
+
+func waitForProcessExit(_ process: Process) async -> (status: Int32, uncaughtSignal: Bool) {
+    await Task.detached(priority: .userInitiated) {
+        process.waitUntilExit()
+        return (
+            status: process.terminationStatus,
+            uncaughtSignal: process.terminationReason == .uncaughtSignal
+        )
+    }.value
+}
