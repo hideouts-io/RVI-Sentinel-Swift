@@ -29,9 +29,15 @@ struct BaselineView: View {
                 Spacer()
                 Button("Export Copy…") { appState.exportBaselineCopy() }
                     .disabled(appState.baselineDocument == nil)
+                    .accessibilityHint(appState.baselineDocument == nil
+                        ? "Create or choose a baseline before exporting a copy."
+                        : "Exports a separate local copy without changing the selected baseline.")
                     .accessibilityIdentifier(AccessibilityIdentifier.exportBaseline.rawValue)
                 Button("Reset…", role: .destructive) { showingResetConfirmation = true }
                     .disabled(appState.baselineDocument == nil)
+                    .accessibilityHint(appState.baselineDocument == nil
+                        ? "Create or choose a baseline before resetting it."
+                        : "Opens a confirmation before resetting and keeping a timestamped backup.")
                     .accessibilityIdentifier(AccessibilityIdentifier.resetBaseline.rawValue)
             }
             if let document = appState.baselineDocument {
@@ -97,6 +103,9 @@ struct BaselineView: View {
                 Button("Add Findings to Baseline…") { showingAddConfirmation = true }
                     .buttonStyle(.borderedProminent)
                     .disabled(appState.analysisResult == nil)
+                    .accessibilityHint(appState.analysisResult == nil
+                        ? "Analyze an authorized capture before adding reviewed findings."
+                        : "Opens a confirmation before updating the selected baseline.")
                     .accessibilityIdentifier(AccessibilityIdentifier.addBaselineFindings.rawValue)
             }
             Table(comparison.differences) {

@@ -30,6 +30,7 @@ struct ExportView: View {
                     }
                     .buttonStyle(.bordered)
                     .disabled(appState.analysisResult == nil || appState.isExporting)
+                    .accessibilityHint(exportHint(format: format))
                     .accessibilityIdentifier(exportAccessibilityIdentifier(format: format).rawValue)
                 }
             }
@@ -67,5 +68,15 @@ struct ExportView: View {
         }
         .padding(28)
         .navigationTitle("Exports")
+    }
+
+    private func exportHint(format: ReportExportFormat) -> String {
+        if appState.isExporting {
+            return "A local export is already being written."
+        }
+        if appState.analysisResult == nil {
+            return "Analyze an authorized capture before exporting " + format.rawValue + "."
+        }
+        return "Writes a local " + format.rawValue + " report without embedding the source capture."
     }
 }

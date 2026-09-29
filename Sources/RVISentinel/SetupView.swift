@@ -25,6 +25,9 @@ struct SetupView: View {
                 }
                 .disabled(appState.isCheckingSetup)
                 .buttonStyle(.borderedProminent)
+                .accessibilityHint(appState.isCheckingSetup
+                    ? "Setup checks are already running."
+                    : "Runs local readiness checks without starting a capture.")
                 .accessibilityIdentifier(AccessibilityIdentifier.runSetupChecks.rawValue)
             }
             if appState.setupChecks.isEmpty {

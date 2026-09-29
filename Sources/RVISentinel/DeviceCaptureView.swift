@@ -23,6 +23,9 @@ struct DeviceCaptureView: View {
                     }
                 }
                 .disabled(appState.isRefreshingDevices)
+                .accessibilityHint(appState.isRefreshingDevices
+                    ? "Device discovery is already running."
+                    : "Searches for physical iPhones and iPads currently available over USB.")
                 .accessibilityIdentifier(AccessibilityIdentifier.refreshDevices.rawValue)
             }
             GroupBox("Connected Apple mobile devices") {
@@ -58,6 +61,9 @@ struct DeviceCaptureView: View {
                 Spacer()
                 Button("Choose Destination…") { appState.chooseOutputDirectory() }
                     .disabled(appState.isCapturing)
+                    .accessibilityHint(appState.isCapturing
+                        ? "The destination cannot change during a capture."
+                        : "Chooses the local folder where the next capture will be saved.")
                     .accessibilityIdentifier(AccessibilityIdentifier.chooseCaptureDestination.rawValue)
                 if appState.isCapturing {
                     Button("Cancel Capture", role: .destructive) {
@@ -70,6 +76,7 @@ struct DeviceCaptureView: View {
                 }
                     .buttonStyle(.borderedProminent)
                     .disabled(appState.selectedDevice?.readiness != .ready || appState.isCapturing)
+                    .accessibilityHint(startCaptureHint)
                     .accessibilityIdentifier(AccessibilityIdentifier.startCapture.rawValue)
             }
             CaptureStatusView(
@@ -98,6 +105,16 @@ struct DeviceCaptureView: View {
         .task {
             await appState.loadDevicesIfNeeded()
         }
+    }
+
+    private var startCaptureHint: String {
+        if appState.isCapturing {
+            return "A capture is already running."
+        }
+        if appState.selectedDevice?.readiness != .ready {
+            return "Select a capture-ready iPhone or iPad before starting."
+        }
+        return "Requests native administrator authorization before creating the RVI and starting packet preflight."
     }
 }
 

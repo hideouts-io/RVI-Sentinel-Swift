@@ -18,6 +18,9 @@ struct AnalysisView: View {
                 Spacer()
                 Button("Choose Capture…") { appState.chooseAnalysisCapture() }
                     .disabled(appState.isAnalyzing)
+                    .accessibilityHint(appState.isAnalyzing
+                        ? "A local analysis is already running."
+                        : "Chooses an authorized PCAP, PCAPNG, or CAP file for local analysis.")
                     .accessibilityIdentifier(AccessibilityIdentifier.chooseAnalysisCapture.rawValue)
                 if appState.isAnalyzing {
                     Button("Cancel", role: .destructive) { Task { await appState.cancelAnalysis() } }
@@ -26,6 +29,7 @@ struct AnalysisView: View {
                 Button("Analyze Locally") { Task { await appState.startAnalysis() } }
                     .buttonStyle(.borderedProminent)
                     .disabled(appState.analysisCaptureURL == nil || appState.isAnalyzing)
+                    .accessibilityHint(startAnalysisHint)
                     .accessibilityIdentifier(AccessibilityIdentifier.startAnalysis.rawValue)
             }
             AnalysisProgressView(progress: appState.analysisProgress, isAnalyzing: appState.isAnalyzing)
@@ -42,6 +46,16 @@ struct AnalysisView: View {
         }
         .padding(28)
         .navigationTitle("Analysis")
+    }
+
+    private var startAnalysisHint: String {
+        if appState.isAnalyzing {
+            return "A local analysis is already running."
+        }
+        if appState.analysisCaptureURL == nil {
+            return "Choose an authorized packet capture before analyzing."
+        }
+        return "Decodes the selected capture locally with IPv4 and IPv6 hostname resolution enabled."
     }
 
     @ViewBuilder
