@@ -68,6 +68,7 @@ actor TSharkAnalyzer {
         process.arguments = tsharkArguments(captureURL: captureURL, fields: supported)
         process.standardOutput = outputPipe
         process.standardError = errorHandle
+        let terminationEvents = processTerminationEvents(process)
         activeProcess = process
         do {
             try process.run()
@@ -96,14 +97,28 @@ actor TSharkAnalyzer {
                     progress(AnalysisProgress(decodedPackets: accumulator.packetCount, status: "Decoded \(accumulator.packetCount.formatted()) packets locally."))
                 }
             }
-        } catch {
+        } catch let decodingError {
             process.interrupt()
-            _ = await waitForProcessExit(process)
+            do {
+                _ = try await firstProcessTermination(
+                    from: terminationEvents,
+                    executable: tshark.path
+                )
+            } catch let terminationError {
+                activeProcess = nil
+                try? errorHandle.close()
+                throw NativeAnalysisError.decodingFailed(
+                    "TShark decoding failed and termination could not be confirmed: \(terminationError.localizedDescription). Decoder error: \(decodingError.localizedDescription)"
+                )
+            }
             activeProcess = nil
             try? errorHandle.close()
-            throw error
+            throw decodingError
         }
-        let termination = await waitForProcessExit(process)
+        let termination = try await firstProcessTermination(
+            from: terminationEvents,
+            executable: tshark.path
+        )
         activeProcess = nil
         try errorHandle.close()
         let errorText = try String(contentsOf: errorURL, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)

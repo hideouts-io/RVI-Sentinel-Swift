@@ -6,11 +6,17 @@ struct ProcessResult: Sendable {
     let standardError: String
 }
 
+struct ProcessTerminationResult: Sendable {
+    let status: Int32
+    let uncaughtSignal: Bool
+}
+
 enum ProcessRunnerError: LocalizedError {
     case executableMissing(String)
     case launchFailed(executable: String, reason: String)
     case pipeClosureFailed(executable: String, stream: String, reason: String)
     case invalidUTF8(executable: String, stream: String)
+    case terminationUnavailable(executable: String)
 
     var errorDescription: String? {
         switch self {
@@ -22,6 +28,8 @@ enum ProcessRunnerError: LocalizedError {
             "Could not close the parent-side \(stream) pipe for \(executable): \(reason)"
         case let .invalidUTF8(executable, stream):
             "\(executable) returned non-UTF-8 data on \(stream)."
+        case let .terminationUnavailable(executable):
+            "Could not confirm that \(executable) terminated."
         }
     }
 }
@@ -39,6 +47,7 @@ struct ProcessRunner: Sendable {
             process.arguments = arguments
             process.standardOutput = outputPipe
             process.standardError = errorPipe
+            let terminationEvents = processTerminationEvents(process)
             do {
                 try process.run()
             } catch {
@@ -60,7 +69,10 @@ struct ProcessRunner: Sendable {
             }
             async let outputData = readPipeToEnd(outputPipe)
             async let errorData = readPipeToEnd(errorPipe)
-            process.waitUntilExit()
+            let termination = try await firstProcessTermination(
+                from: terminationEvents,
+                executable: executableURL.path
+            )
             let (capturedOutput, capturedError) = await (outputData, errorData)
             guard let output = String(data: capturedOutput, encoding: .utf8) else {
                 throw ProcessRunnerError.invalidUTF8(executable: executableURL.path, stream: "stdout")
@@ -69,7 +81,7 @@ struct ProcessRunner: Sendable {
                 throw ProcessRunnerError.invalidUTF8(executable: executableURL.path, stream: "stderr")
             }
             return ProcessResult(
-                exitCode: process.terminationStatus,
+                exitCode: termination.status,
                 standardOutput: output,
                 standardError: error
             )
@@ -83,12 +95,26 @@ func readPipeToEnd(_ pipe: Pipe) async -> Data {
     }.value
 }
 
-func waitForProcessExit(_ process: Process) async -> (status: Int32, uncaughtSignal: Bool) {
-    await Task.detached(priority: .userInitiated) {
-        process.waitUntilExit()
-        return (
-            status: process.terminationStatus,
-            uncaughtSignal: process.terminationReason == .uncaughtSignal
-        )
-    }.value
+func processTerminationEvents(_ process: Process) -> AsyncStream<ProcessTerminationResult> {
+    AsyncStream { continuation in
+        process.terminationHandler = { terminatedProcess in
+            continuation.yield(
+                ProcessTerminationResult(
+                    status: terminatedProcess.terminationStatus,
+                    uncaughtSignal: terminatedProcess.terminationReason == .uncaughtSignal
+                )
+            )
+            continuation.finish()
+        }
+    }
+}
+
+func firstProcessTermination(
+    from events: AsyncStream<ProcessTerminationResult>,
+    executable: String
+) async throws -> ProcessTerminationResult {
+    guard let termination = await events.first(where: { _ in true }) else {
+        throw ProcessRunnerError.terminationUnavailable(executable: executable)
+    }
+    return termination
 }
