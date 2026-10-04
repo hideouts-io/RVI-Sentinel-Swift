@@ -3,7 +3,7 @@
 ### Native SwiftUI iPhone/iPad packet capture, evidence review, and persistent network baselining
 
 <p align="center">
-  <img src="assets/rvi-sentinel-logo.png" width="220" alt="RVI-Sentinel iOS packet-capture logo">
+  <img src="assets/rvi-sentinel-swift-logo-circular.png" width="220" alt="Circular RVI-Sentinel-Swift iOS packet-capture logo">
 </p>
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-000000?logo=apple&logoColor=white)
@@ -417,7 +417,8 @@ RVI-Sentinel-Swift/
 │   ├── PhysicalWorkflowTests.swift    # Opt-in authorized-capture integration path
 │   └── *Tests.swift                   # Capture, analysis, baseline, export, and privacy tests
 ├── assets/
-│   └── rvi-sentinel-logo.png
+│   ├── rvi-sentinel-swift-logo-circular.png # Native app and repository logo
+│   └── rvi-sentinel-logo.png                # Original published logo
 ├── evidence/
 │   ├── rvi-sentinel-swift-overview.png
 │   ├── rvi-sentinel-swift-baselines.png
