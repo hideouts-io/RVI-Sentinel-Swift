@@ -1,0 +1,352 @@
+{
+  "identity": "Original RVI-Sentinel route monogram and wordmark with the Swift bird centered above the V",
+  "approved": "2026-10-06",
+  "masters": "masters/*.svg contain the original Python raster artwork and a separate positioned Swift bird layer; embedded images are self-contained.",
+  "placements": {
+    "app-icon.png": "High-resolution app icon; installed size exports are in Resources/Assets.xcassets/AppIcon.appiconset",
+    "RVI-Sentinel-Swift.icns": "Native macOS icon file",
+    "readme-header-light.png": "GitHub README light header",
+    "readme-header-dark.png": "GitHub README dark header",
+    "feature-overview.png": "Conceptual workflow illustration, not an interface screenshot",
+    "social-preview-1280x640.png": "GitHub repository social preview, 1280 x 640",
+    "logos/": "Transparent full logos, compact headers, marks and wordmarks in light, dark, black and white treatments",
+    "../../evidence/rvi-sentinel-swift-overview-branded.png": "Real native app Overview screenshot in an empty, privacy-safe state"
+  },
+  "assets": [
+    {
+      "file": "RVI-Sentinel-Swift.icns",
+      "sha256": "f0dc3539e0a4a83df27f5f6198726ee930ef96fc14e44240809b38829d8a4bb0",
+      "format": "icns"
+    },
+    {
+      "file": "app-icon.png",
+      "sha256": "ad2b7ad4df2defd1ac8fca234eec740a516a1a92c61eaf891e4d98288eb03777",
+      "format": "png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true
+    },
+    {
+      "file": "feature-overview.png",
+      "sha256": "2bd940a59f4379b00d451c306169e76408bd7fb6d5da3fe520767b85199cbd0d",
+      "format": "png",
+      "dimensions": [
+        1600,
+        900
+      ],
+      "transparency": false
+    },
+    {
+      "file": "logo-on-dark.png",
+      "sha256": "cf2b6a61ad5bc25f8d4b3c05a164c9524c6bf0a837d0064fc8cd9cd1f187b69c",
+      "format": "png",
+      "dimensions": [
+        2172,
+        724
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logo-on-light.png",
+      "sha256": "45829bc6ceccc86dc8f03186f9d59ed7f2778c96a2301d3f2ab6f24a0fb8f0cb",
+      "format": "png",
+      "dimensions": [
+        2172,
+        724
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/header-mono-black.png",
+      "sha256": "859d33cc3bc2845f191298a27dd4275d64c0a8a6de4a97f96f3022b1bcde9ad0",
+      "format": "png",
+      "dimensions": [
+        480,
+        160
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/header-mono-black.svg",
+      "sha256": "0886b4e56171633891bf67278c5d315e3962a77b76bd8e8db2b23141b5352050",
+      "format": "svg"
+    },
+    {
+      "file": "logos/header-mono-white.png",
+      "sha256": "a6c5eca7ac22cce672f96b660e1332fcd1afadc12e26d11b94901e0940ceb7be",
+      "format": "png",
+      "dimensions": [
+        480,
+        160
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/header-mono-white.svg",
+      "sha256": "5c0a0c220e7ca12811fc8150c2d43d055e2e0f7ab0bb431e9f09585dac7c825d",
+      "format": "svg"
+    },
+    {
+      "file": "logos/header-on-dark.png",
+      "sha256": "f7726ba658bf3ee1f151f58af31edf7f2185b71917578f2c04d26fd7db12ee58",
+      "format": "png",
+      "dimensions": [
+        480,
+        160
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/header-on-dark.svg",
+      "sha256": "2cd3b327a32ded349cb8a5e2742b8739c89c782d9a16be64994a407b1841365a",
+      "format": "svg"
+    },
+    {
+      "file": "logos/header-on-light.png",
+      "sha256": "f37f5e4c649225274e1b11aaa88b63b052f044c3c63bfe40657fd6b7f0fe3727",
+      "format": "png",
+      "dimensions": [
+        480,
+        160
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/header-on-light.svg",
+      "sha256": "fe4d3b332a1fd239e23f0ae3db2208ae26bbfbfad9c1390a6d33c3ec6974940f",
+      "format": "svg"
+    },
+    {
+      "file": "logos/logo-mono-black.png",
+      "sha256": "1bd772ff46b8ecafd2ac0488a5328cbbfc3b92c6f77a496ee4a50bafed6be0b3",
+      "format": "png",
+      "dimensions": [
+        2172,
+        724
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/logo-mono-black.svg",
+      "sha256": "0f77b71dd755d3ba21b1c0325e81b600f789eff0d3cda522f0603ba96dff660d",
+      "format": "svg"
+    },
+    {
+      "file": "logos/logo-mono-white.png",
+      "sha256": "f1aac9d0e52265d7796f1e8340da6bd4ac97dca98a0774de0788d7cd2b8abcf5",
+      "format": "png",
+      "dimensions": [
+        2172,
+        724
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/logo-mono-white.svg",
+      "sha256": "045d08f507e5865f25907c8c7531e85f1bbc12ac7d9851a94e5051e80806e806",
+      "format": "svg"
+    },
+    {
+      "file": "logos/logo-on-dark.png",
+      "sha256": "cf2b6a61ad5bc25f8d4b3c05a164c9524c6bf0a837d0064fc8cd9cd1f187b69c",
+      "format": "png",
+      "dimensions": [
+        2172,
+        724
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/logo-on-dark.svg",
+      "sha256": "c9fe71731a0713b33940c3ad94d18016481f5bf4ef6ffd9b6c87c09dc9d568e9",
+      "format": "svg"
+    },
+    {
+      "file": "logos/logo-on-light.png",
+      "sha256": "45829bc6ceccc86dc8f03186f9d59ed7f2778c96a2301d3f2ab6f24a0fb8f0cb",
+      "format": "png",
+      "dimensions": [
+        2172,
+        724
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/logo-on-light.svg",
+      "sha256": "c0d60a570139914b875b3208f5f1f7935e76e2050fbd442da0493064c748d836",
+      "format": "svg"
+    },
+    {
+      "file": "logos/mark-mono-black.png",
+      "sha256": "bfcea38d8fcb7f7bde6ce5c304af537a6414a9ca67d4fe8fa34c4d04afeca303",
+      "format": "png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/mark-mono-black.svg",
+      "sha256": "e4d3c6d207b73d3e10c181360d085a1a216e890b1c5c05357a670e284e8f7f3b",
+      "format": "svg"
+    },
+    {
+      "file": "logos/mark-mono-white.png",
+      "sha256": "2f49036049b5890e57f2044eb62bca513d1bc0f95c71c9a4f76f6f9d586a00e6",
+      "format": "png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/mark-mono-white.svg",
+      "sha256": "9565e6d4f8c0b248021b2aa7e756052ed8d940c5ef48ac1d547bdc17a64db3e8",
+      "format": "svg"
+    },
+    {
+      "file": "logos/mark-on-dark.png",
+      "sha256": "9c5a8595e1d8c5b80197e64a4872d8225386bac4a8129d0d4b59521159860e8e",
+      "format": "png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/mark-on-dark.svg",
+      "sha256": "e565bae346ecf183f4bb8e3a7b60cc0d0cf36c0b398b40e342c5774e149d7a2b",
+      "format": "svg"
+    },
+    {
+      "file": "logos/mark-on-light.png",
+      "sha256": "cd18112db08e5be5ccd5a00b8b0fee85a7ad5efe48ea6bc1dc4b9eee800b72f7",
+      "format": "png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/mark-on-light.svg",
+      "sha256": "9392430aa9e5553de53af308faf404b5f5affd48aa17a5b61f848f294980f2bd",
+      "format": "svg"
+    },
+    {
+      "file": "logos/wordmark-mono-black.png",
+      "sha256": "3bc2ea137eb5433186b07af415802622cb61f40e5f37b437f81b512c67e27dc7",
+      "format": "png",
+      "dimensions": [
+        1492,
+        340
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/wordmark-mono-black.svg",
+      "sha256": "a747ff880f8b52a2f5cdb347fb65c5f19b087a90339c0b412e9ab535c942f6b6",
+      "format": "svg"
+    },
+    {
+      "file": "logos/wordmark-mono-white.png",
+      "sha256": "9218307d8519be42c52f017978c515ee5f0c495032a3c93bfbb0a0ba8e7763f5",
+      "format": "png",
+      "dimensions": [
+        1492,
+        340
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/wordmark-mono-white.svg",
+      "sha256": "0b719b7f8db641c29c396c54099d59c5a52daa2884c70f4066915b024548e81d",
+      "format": "svg"
+    },
+    {
+      "file": "logos/wordmark-on-dark.png",
+      "sha256": "ef0d6dbec3c2ffa3f42ac866bef2e0554dc67fc482e1411a86dafa8d662d0058",
+      "format": "png",
+      "dimensions": [
+        1492,
+        340
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/wordmark-on-dark.svg",
+      "sha256": "91241dbf47b9828e4513a14f5906279c90e15752cfbccb80d928bae777a84938",
+      "format": "svg"
+    },
+    {
+      "file": "logos/wordmark-on-light.png",
+      "sha256": "9c669ba41a1b2511f87bfbd0ce94086b18b001033d99b03ed26bd0ea3d166f57",
+      "format": "png",
+      "dimensions": [
+        1492,
+        340
+      ],
+      "transparency": true
+    },
+    {
+      "file": "logos/wordmark-on-light.svg",
+      "sha256": "5b4a936bd3c71597232c4bd29c18756c446a9916936fec01886b73bae12f700e",
+      "format": "svg"
+    },
+    {
+      "file": "masters/app-icon-master.svg",
+      "sha256": "ec60c6caa8fb79c31d01a9b00299156e7ebac0fc30dec961de663e5862e42d7f",
+      "format": "svg"
+    },
+    {
+      "file": "masters/horizontal-logo-master.svg",
+      "sha256": "56112b6397a3729d3123c3915ead49a8c7580d2fe3f918711ca5e355dd28d814",
+      "format": "svg"
+    },
+    {
+      "file": "masters/swift-bird-overlay.png",
+      "sha256": "315da9097c2cc5f4dc61a353456fbfd0c01616023963bde516fbaec48310e1d3",
+      "format": "png",
+      "dimensions": [
+        1374,
+        1145
+      ],
+      "transparency": true
+    },
+    {
+      "file": "readme-header-dark.png",
+      "sha256": "3db635b57b4aeb8816e79d20c259e3fe2dbd8a1ccd5b088dd99e21bf063dc3ff",
+      "format": "png",
+      "dimensions": [
+        1600,
+        480
+      ],
+      "transparency": false
+    },
+    {
+      "file": "readme-header-light.png",
+      "sha256": "437e318b893a07bd032fa95728c705e3f9c97ed418e07817814f37781e0a1c0b",
+      "format": "png",
+      "dimensions": [
+        1600,
+        480
+      ],
+      "transparency": false
+    },
+    {
+      "file": "social-preview-1280x640.png",
+      "sha256": "c1f6428eed4e1ed819a5a12c51df85640fe9afbf4268e5e9bb70b7e76ef44726",
+      "format": "png",
+      "dimensions": [
+        1280,
+        640
+      ],
+      "transparency": false
+    }
+  ]
+}
