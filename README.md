@@ -3,7 +3,10 @@
 ### Native SwiftUI iPhone/iPad packet capture, evidence review, and persistent network baselining
 
 <p align="center">
-  <img src="assets/rvi-sentinel-logo.png" width="220" alt="RVI-Sentinel iOS packet-capture logo">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/branding/readme-header-dark.png">
+    <img src="assets/branding/readme-header-light.png" width="1000" alt="RVI-Sentinel for macOS: the original route monogram with the Swift bird above the V.">
+  </picture>
 </p>
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-000000?logo=apple&logoColor=white)
@@ -72,25 +75,27 @@ The screenshots below show privacy-safe application states. They contain no priv
 
 ### Guided workflow overview
 
-![RVI-Sentinel native macOS overview](evidence/rvi-sentinel-swift-overview.png)
+![RVI-Sentinel native macOS Overview screenshot](evidence/rvi-sentinel-swift-overview-branded.png)
 
 The Overview presents capture as a six-step workflow and states the process/interface evidence boundary before analysis begins.
 
 ### Review-before-update baselines
 
-![RVI-Sentinel protected baseline workspace](evidence/rvi-sentinel-swift-baselines.png)
+![RVI-Sentinel protected baseline workspace screenshot](evidence/rvi-sentinel-swift-baselines.png)
 
 Analysis never silently changes a baseline. Each device or investigation can use a separate local baseline, and reviewed findings are added only through an explicit action.
 
 ### Redacted diagnostics
 
-![RVI-Sentinel redacted diagnostics workspace](evidence/rvi-sentinel-swift-diagnostics.png)
+![RVI-Sentinel redacted diagnostics workspace screenshot](evidence/rvi-sentinel-swift-diagnostics.png)
 
 Diagnostics are generated locally and deliberately exclude packet data, addresses, hostnames, device names and identifiers, credentials, and private file paths.
 
 ---
 
 ## What It Does
+
+![Illustrated RVI-Sentinel workflow: packet capture, local analysis, reviewed baselines, and local reports](assets/branding/feature-overview.png)
 
 - Provides a native SwiftUI workflow for setup, device selection, capture, analysis, baselining, export, and diagnostics.
 - Detects physical, booted, paired iPhones and iPads connected over USB; simulators are excluded.
@@ -417,7 +422,8 @@ RVI-Sentinel-Swift/
 │   ├── PhysicalWorkflowTests.swift    # Opt-in authorized-capture integration path
 │   └── *Tests.swift                   # Capture, analysis, baseline, export, and privacy tests
 ├── assets/
-│   └── rvi-sentinel-logo.png
+│   ├── rvi-sentinel-swift-logo-circular.png # Native app and repository logo
+│   └── rvi-sentinel-logo.png                # Original published logo
 ├── evidence/
 │   ├── rvi-sentinel-swift-overview.png
 │   ├── rvi-sentinel-swift-baselines.png

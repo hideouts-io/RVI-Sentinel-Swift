@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
@@ -77,17 +78,32 @@ struct PageHeader: View {
     }
 }
 
+struct OverviewHeader: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 72, height: 72)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("RVI-Sentinel").font(.largeTitle.bold())
+                Text("Guided, local iPhone and iPad network evidence collection")
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+    }
+}
+
 struct OverviewView: View {
     let selectSection: (NavigationSection) -> Void
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                PageHeader(
-                    title: "RVI-Sentinel",
-                    subtitle: "Guided, local iPhone and iPad network evidence collection",
-                    symbol: "iphone.gen3.radiowaves.left.and.right"
-                )
+                OverviewHeader()
                 Text("Capture only devices and networks you are authorized to inspect. A new endpoint or hostname is a change to investigate—not proof of malicious activity. Encrypted payloads remain protected.")
                     .font(.title3)
                     .padding()
