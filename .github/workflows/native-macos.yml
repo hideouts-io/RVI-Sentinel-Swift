@@ -27,6 +27,10 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Install TShark for packet evidence integration tests
+        run: |
+          brew install wireshark
+          test -x /opt/homebrew/bin/tshark
       - name: Build and test native app
         run: >-
           xcodebuild
