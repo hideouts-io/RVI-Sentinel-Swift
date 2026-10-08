@@ -1,0 +1,257 @@
+# RVI capture and analysis roadmap
+
+Status: the core RVI-only implementation is ready for review. Native browsing, controlled resolver, and physical-device acceptance remain pending. This is the canonical implementation and validation checklist.
+
+## Scope and reviewed baseline
+
+- Target: `RVI-Sentinel-Swift`, branch `codex/rvi-packet-analysis`, based on HEAD `9bdd458bbcb2c79d3a9d8e9cfce57e66b06988ea` and the merged GitHub main commit `f4d80ca3e57620800aedda001e278404b67abedc`.
+- Read-only reference: `RVI-Correlator`, branch `codex/security-remediation`, HEAD `12c62bba8bbe6aeb99493d93e748fb24ac640f15`.
+- Both roots are confirmed by the workspace registry. Applicable global instructions and the Codex ancestor instructions were read; no project/component `AGENTS.md` or `AGENTS.override.md` was found.
+- Reviewed on 2026-10-07. Screenshots describe desired behavior; source code establishes implementation details. No private captures, device operations, privileged commands, or active DNS queries were used for this study.
+- Keep device RVI capture, saved-file analysis, and native Swift/SwiftUI navigation. Exclude Mac PKTAP collection, cross-device matching, correlation scores, direct-peer analysis, unified logs, and additional collection mechanisms.
+
+## Findings and decision
+
+The initial gap was decoder/model/UI support. Sentinel records Apple PCAPNG using `tcpdump -P` and analyzes originals in place; no import conversion was found that strips metadata. It now retains compact packet records alongside existing aggregate inventories, negotiates recorded process/effective-process/interface/direction fields, and provides native packet/session views. The capture workflow is retained. [S1–S6]
+
+Correlator obtains labels such as `maild` from the source capture's decoded `frame.darwin.process_info.*` options or `pktap.*` headers. It is not deriving iPhone labels from Mac correlations. These are recorded labels, not independently verified device process identity. The installed TShark 4.6.9 field catalog exposes all four Apple process/effective-process fields, direction, interface, PKTAP equivalents, raw TCP sequence/acknowledgment, and captured length. Availability in a decoder does not establish presence in a particular capture. [C1–C3, W1–W2]
+
+### Pipeline comparison
+
+| Stage | RVI-Correlator | RVI-Sentinel Swift | Consequence |
+| --- | --- | --- | --- |
+| Capture | Device RVI runs `/usr/sbin/tcpdump -i <rvi> -s 0 -U -n -P --apple-pcapng -w -`; output is the original device PCAPNG. Its live service also collects Mac/log sources. [C1, C12] | PCAPNG is the UI default. Writer uses `-i <rvi> -s 0 -U -n -P -Z <user> -w <destination>`; classic PCAP uses `-y RAW`. Existing setup, preflight, validation, hash, and cleanup remain. [S1] | `-P` and `--apple-pcapng` are aliases in the installed Apple tcpdump manual. No capture-flag change is presently justified. Classic RAW PCAP cannot carry Apple PCAPNG process options; absence must remain explicit. |
+| Copy/import | Live finalization copies original bytes, checks source before/after and copied hash/size, then renames. Offline import reads the selected original directly and checks hash before/after decoding. [C4, C2] | Selected files are read directly; there is no import conversion. Capture and analysis already compute SHA-256; analysis now checks SHA-256 before/after decoding and rejects changed sources. [S1, S3, S4] | Keep original containers. Add changed-source detection and an explicit original-reference contract; do not add conversion or managed copies merely to obtain labels. |
+| Decoder | `-n -2 -r … -T json --no-duplicate-keys` requests per-frame process/interface/direction, endpoints, streams, raw TCP values, and hostname fields. A separate structured DNS pass preserves RR relationships. [C2, C8] | Field negotiation uses installed `-G fields`; bounded TSV streaming uses `-n` and preserves supported per-frame metadata. Structured DNS preserves RR ownership. [S2, S3] | Sentinel now uses a bounded streaming `-n` pass with optional metadata/raw TCP fields and a structured DNS pass. Current lookup is an explicit inspector action. |
+| Models | Artifact identity, per-frame observations, original/adjusted times, and decoded fields remain available. [C2, C3] | `DecodedPacket` remains transient. Typed per-frame records, exact decoded epochs, artifact identity, and bounded sessions augment existing aggregates. Endpoint process ownership remains unavailable because an IP can serve several processes. [S2, S5] | Add packet-scoped recorded metadata and stable artifact/frame identities. Do not assign a single process owner to a shared IP endpoint. |
+| Timeline/inspector | Selectable chronological rows and inspector expose fields, source frame, process labels, interface/direction, and navigation. [C5] | Analysis retains aggregate tabs and adds a paged chronological timeline, filters, inspector, and scoped sessions. [S6] | Reuse existing decoded fields and native Analysis navigation before requesting more collection. |
+| Sessions | Direction-independent five-tuple plus artifact, interface, process context, and TShark stream; incomplete/ambiguous packets remain outside groups. [C6] | Pure TCP/UDP grouping retains member frame IDs within the artifact/stream/interface/process context; incomplete and conflicting records remain on the timeline. [S2, S5] | Build a pure RVI-only grouping path after packet retention; streams and ports alone are insufficient. |
+| Hostnames | Supporting frame IDs and evidence origin; structured A/AAAA/CNAME records, TTL/client/artifact scope, and separately triggered current lookup. [C7–C9] | Direct packet names and structured DNS resource records retain source frames. DNS links apply client/interface/time/TTL/replacement scope; earlier stream names are labeled inferred and unpaired when request role is unavailable. Current PTR stays separate. [S5, S7] | Improve linkage and correctness instead of rebuilding hostname detection. |
+| Original bytes/integrity | Single-frame `jsonraw` inspection verifies artifact hash before/after and only highlights byte ranges whose hex matches saved bytes. [C10] | The inspector supports reveal/open and bounded, on-demand original bytes/ranges after matching SHA-256 and frame identity before/after extraction. [S1, S6] | Reuse hashing/reveal behavior. Add bounded, on-demand original-byte inspection later. |
+| Scale | 50,000-frame batches and bounded process/data budgets; later batches restart TShark over growing prefixes. UI/search also scan retained arrays. [C11] | Bounded streaming, progress every 5,000 packets, and existing detail caps remain. Packet queries are paged/off-main. Generated 50k/100k optimized native decoder/query tests pass; scrolling and visual acceptance remain pending. [S3, S5] | Preserve streaming; add compact, bounded packet indexing and paged UI. Correlator's limits are not responsiveness evidence. |
+
+### Reference behaviors to adapt carefully
+
+- Correlator's `rebuild` requires both iPhone and Mac imports before deriving sessions/hostname investigation; its live finalization also requires both capture sources. Adapt independent analysis functions, not its coordinator or complete live service. [C12]
+- Correlator's canonical ordering time truncates fractional seconds to microseconds even though the original epoch text survives. Sentinel currently converts timestamps to floating-point `Date`. Preserve source precision explicitly; do not copy either representation as the exact timestamp contract. Display timezone changes do not alter original capture time. Clock-offset controls are outside this RVI-only scope. [C2, S5]
+- Correlator only fills session process display labels for Mac packets. Sentinel's RVI sessions must display/search their own recorded labels. Its timeline search also lacks some requested interface/PID/both-endpoint filters. [C5, C6]
+- Sentinel's former flattened DNS Cartesian pairing is removed. Only structured owner/RDATA pairs establish direct answer/address records. Questions, certificate names, and request-role-ambiguous authorities remain unpaired; inferred conversation names do not identify a peer. [S5]
+- Correlator's structured DNS importer supports A, AAAA, and CNAME relationships; it is not complete mDNS/DNS-SD service reconstruction. Preserve unpaired PTR/service observations rather than inventing address associations. [C8]
+- Correlator's active DNS implementation retries request errors and uses blocking process I/O. Adopt its separate present-day provenance, with explicit bounds/cancellation and no indiscriminate retries. [C9]
+
+## Ranked additions
+
+Effort is relative implementation complexity, not a time estimate. Resource/performance controls are prerequisites throughout, with final measured acceptance in M6.
+
+| Rank | Addition and user value | Implementation status / remaining work | Effort / main risk | Dependency / verification |
+| --- | --- | --- | --- | --- |
+| 1 | Recorded process/effective-process, interface, direction, and retained packet identity: expose useful evidence already saved. | Implemented typed metadata, optional field negotiation, exact decoded epochs, and explicit provenance/unknown/conflict states. Container-declared timestamp resolution is not inferred from decoder digits. [S2, S5; C2, C3] | Medium; unsupported fields, absent metadata, conflicting sources, PID reuse. | M1. Real TShark metadata-rich and metadata-free files; physical-device label availability separately. |
+| 2 | Searchable packet timeline and inspector: explain what happened packet by packet. | Implemented retained records, bounded paging, raw TCP fields, filters, native inspector and original actions. Final visual selection/scrolling acceptance remains pending. [S2, S6; C5] | Medium–high; retention cost, timestamp ordering, incorrect field pairing. | M1 → M2. Stable selection, equal-time ordering, IPv4/IPv6, both endpoints, unknown labels, cancellation. |
+| 3 | TCP/UDP sessions with packet ↔ session ↔ timeline navigation. | Implemented scoped pure grouping and session/focused timeline/packet return controls. Full native traversal remains pending. [S2; C6] | Medium; merging distinct flows or hiding incomplete packets. | M1/M2 → M3. Reversed directions, same tuple/different context, ambiguous encapsulation, and complete membership counts. |
+| 4 | Packet/flow hostname provenance: explain each name and its supporting evidence. | Implemented structured records, supporting frames, TTL/client/interface scope, and conservative unpaired certificate/authority evidence. [S5, S7; C7, C8] | Medium–high; false name/address or historical associations. | M1; UI after M2/M3, implemented in M4 before any session name inference is exposed. Multi-answer DNS, CNAME, TTL, negative responses, opposing TLS directions. |
+| 5 | Optional current reverse DNS: useful enrichment with a clear separate result. | Ordinary analysis is passive. Explicit current PTR UI/connector and parser validation exist; live controlled-resolver acceptance remains pending. [S3, S5; C9] | Medium; behavior change, network disclosure, confusing lookup time with packet time. | M4. Passive analysis invokes no resolver; separately validate success, no-answer, invalid input, timeout, and cancellation. |
+| 6 | Original capture integrity and raw packet bytes: make each displayed record traceable. | Implemented typed pending/verified/failed status, before/after hash checks, source/frame references and bounded byte/range inspection. Native byte UI/cost acceptance remains pending. [S1, S3, S6; C4, C10] | Medium; stale source, whole-file hashing cost, confusing container metadata with frame bytes. | Identity/state in M1, reveal in M2, verified raw inspection in M5. Changed/missing/growing/truncated originals and byte equality. |
+| 7 | Responsive analysis at screenshot-scale and beyond. | Generated 50k/100k optimized native decoder, filter, selection and cancellation tests pass. Physical/native scrolling and DNS-heavy workloads have separate acceptance. [S3, S5; C11] | Medium; retaining complete dictionaries/payloads or repeated rescans. | Design in M1; measure each UI milestone and close M6. At least 50,000 and 100,000 packets, with host/tool/capture context recorded. |
+
+## Implementation shape
+
+- Keep `CaptureCoordinator`, existing `TSharkAnalyzer` capability negotiation, and aggregate analysis results. Do not replace Sentinel's collector with Correlator's privileged multi-source service.
+- Introduce a typed artifact reference, exact capture timestamp, packet record, recorded-process metadata, capture direction, session key, and hostname support reference. The artifact records source provenance: Sentinel live device RVI, user-declared imported RVI, or unknown. Apple process options in an arbitrary imported file do not establish iPhone origin. Keep domain transformations pure; external decoding/file/lookup work stays behind narrow I/O boundaries.
+- Use compact packet records and a bounded indexed query boundary. Page results into native SwiftUI `Table`/inspector views; fetch original bytes and verified field ranges on demand. Do not place every raw field dictionary or payload in `AppState`. Establish explicit record/byte budgets; exceeding a supported limit is a specific failure, never silent truncation. Add disk-backed indexing only if measured supported captures require it.
+- Keep original decoded epoch text plus validated integral seconds/fraction for exact comparison. Container-declared resolution remains unknown unless separately established. Sort by exact capture time then frame number; display local timezone separately. A source frame number is unique only inside its artifact.
+- Model recorded process labels separately from `ProcessAttribution`. Preserve label origin and unknown/unsupported/not-present states. If PCAPNG and PKTAP metadata disagree, surface the conflict; do not silently substitute one.
+- Preserve original frame bytes and explicit ambiguity diagnostics for inspection; do not retain complete raw decoder dictionaries per packet. Derive endpoints/sessions only when one transport/IP pairing is established. Keep ungroupable records visible on the timeline.
+- Reuse current summary, protocol details, interfaces, baselines, and export behavior. Version any required serialized changes and preserve old documents. Packet browsing must not silently expand report exports with payloads, private paths, or new evidence inventories.
+
+## Milestones and TODO
+
+### M0 — source study and baseline (complete)
+
+- [x] Confirm canonical roots, instruction scope, branches/revisions, and existing dirty work.
+- [x] Trace capture/copy/import/decode/models/UI and locate existing Sentinel equivalents.
+- [x] Verify required optional field names against installed TShark 4.6.9 and official references.
+- [x] Record prioritized additions, dependencies, acceptance criteria, and live-validation limits in this file.
+
+### M1 — preserve packet identity and recorded metadata
+
+Affected: `AnalysisModels.swift`, `Models.swift`, `TSharkAnalyzer.swift`, `PacketAnalysis.swift`, `AppState.swift`; new cohesive packet/timestamp/index model files as needed. Depends on M0.
+
+- [x] Add optional `frame.darwin.process_info.{pid,pname,epid,epname}`, `frame.packet_flags_direction`, `pktap.{pid,cmdname,epid,ecmdname,ifname,flags}`, `tcp.seq_raw`, `tcp.ack_raw`, and `frame.cap_len` through the existing field catalog.
+- [x] Retain compact per-frame records with artifact/frame identity and explicit source provenance, exact decoded epoch values, with container-declared resolution unknown unless separately established, protocol stack, validated endpoint/stream fields, recorded process/effective-process metadata, interface, direction, and field-support status. Distinguish live RVI provenance from an importer's declaration or unknown origin; field presence alone must never produce an iPhone attribution.
+- [x] Validate field values/ranges and repeated-layer ambiguity. Keep missing labels unknown and PID 0 unavailable; PID/name pairs are not process lifetime identifiers.
+- [x] Preserve aggregate outputs while adding a bounded packet index/query boundary. Specify cancellation, decoder deadlines, record/row/diagnostic/resource bounds, and explicit failure behavior for the added path.
+- [x] Reuse streaming SHA-256; add typed pending/verified/failed integrity states and before/after original-file verification. Do not return completed evidence for a changed source.
+- [x] Preserve existing serialized export/baseline contracts or version a necessary schema change explicitly; do not add packet payload export.
+
+Acceptance: metadata-rich input exposes only its own recorded labels; ordinary RAW PCAP remains usable with unknown labels/direction; missing optional decoder fields are distinguished from absent capture data; unequal sub-microsecond timestamps remain distinct; all decoded frames have stable references; source bytes remain unchanged; resource-limit/cancellation failures are explicit. Existing aggregate totals remain equivalent for the same passive fields.
+
+Verification: real installed TShark against isolated known PCAP/PCAPNG inputs, optional-field negotiation, malformed/repeated-layer/invalid-value cases, timestamp precision, changed-source denial, aggregate equivalence, and initial 50,000-packet resource measurements. Manufactured format fixtures establish parser behavior only; real iPhone metadata requires the physical validation in M6.
+
+### M2 — native packet timeline and inspector
+
+Affected: `AnalysisView.swift`, `AppState.swift`, `Models.swift` accessibility identifiers; new cohesive packet list/inspector views. Depends on M1.
+
+- [x] Add a paged chronological packet view inside Analysis, retaining existing summary tabs.
+- [x] Support search by recorded process/name/PID, source and destination IPv4/IPv6/port, directly recorded packet names, and protocol; add explicit protocol/interface/direction filters and accurate total/shown counts. Until M4 completes correct associations, do not use existing aggregate hostname-to-IP mappings for packet/session search or labels.
+- [x] Show exact original epoch, formatted local time and decoded representation, explicitly distinguishing it from container-declared resolution, artifact/frame ID, wire/captured lengths, protocol stack, endpoints, relative versus raw TCP values, flags, process/effective process, interface, and direction.
+- [x] Add stable selection and navigation/accessibility IDs; keep filter/sort state while inspecting or returning from a packet.
+- [x] Reuse Finder reveal for analysis originals and show actionable missing/changed-file states. Explain recorded labels as metadata without repeating verbose explanations in every row.
+
+Acceptance: every decoded packet, including ungroupable records, is reachable; tied timestamps have deterministic frame order; PID and both-endpoint searches work; absent labels are clear; selection survives filtering and inspector return; protocol-detail aggregates retain their existing relative sequence/ACK labels.
+
+Verification: native UI interaction using stable IDs, deterministic sorting/filter checks, IPv6/unknown-value display, all-row reachability, and 50,000-packet load/filter/scroll measurements. A successful build alone does not establish UI interaction.
+
+### M3 — RVI-only sessions and navigation
+
+Affected: packet/index model, new pure session grouping and session views, `AnalysisView.swift`, `AppState.swift`. Depends on M1/M2.
+
+- [x] Group direction-independent TCP/UDP endpoint pairs only within one artifact, stream, interface, and recorded process/effective-process context.
+- [x] Display endpoints, transport/stream, first/last exact times, packet count, interface, and recorded RVI process labels. Keep PID reuse and missing labels from becoming identity claims.
+- [x] Keep incomplete five-tuples, missing stream IDs, and ambiguous/encapsulated layers on the timeline without guessed session membership.
+- [x] Implement session → focused timeline → packet → return navigation with stable IDs and restored selection/filter state. Make every session member accessible, not merely a preview subset.
+- [x] Leave inferred hostname associations absent until M4; do not import correlation/log/peer-link fields into the session model.
+
+Acceptance: opposite packet directions join the same eligible session; identical tuples from different artifacts/interfaces/streams/process contexts do not merge; session counts equal their distinct member frames; unknown/ambiguous records remain visible; complete navigation works with only an RVI input.
+
+Verification: real decoder integration plus minimal grouping cases for reversed endpoints, context changes, absent fields, repeated layers, all-member traversal, and native navigation IDs. No Mac capture is required or requested.
+
+### M4 — hostname evidence and optional current lookup
+
+Affected: `PacketAnalysis.swift`, `Models.swift`, `TSharkAnalyzer.swift`, packet/session views; a narrow lookup connector; relevant `README.md`, compatibility guidance, and existing hostname/lookup assertions. Depends on M1/M2; session presentation also depends on M3.
+
+- [x] Decode structured DNS resource records with owner/type/value/TTL/frame identity instead of Cartesian-product pairing of flattened response arrays. Bound the additional pass and avoid per-packet capture rescans.
+- [x] Attach supporting frame/stream IDs to captured DNS/mDNS/PTR/service observations, TLS/QUIC SNI, HTTP authorities, and certificate names. Validate certificate peer/direction context; keep unsupported or unpaired names explicitly unpaired.
+- [x] Separate directly recorded names from inferred within-stream or DNS-answer associations. Scope inferred DNS links by artifact/client/address family/time, TTL, CNAME chain, and later replacement/negative responses; retain conflicting candidates and reasons.
+- [x] Ensure DNS questions alone never label a later endpoint. Do not claim full DNS-SD reconstruction or infer why an encrypted/late capture lacks names.
+- [x] Make ordinary analysis passive (`-n`) and remove automatic `-N nN` enrichment from its data contract. Update associated UI text, coverage/export declarations, docs, and meaningful existing assertions consistently.
+- [x] Add an explicit current PTR lookup for a selected validated IP. Store requested/completed times, query, result/status, TTL where available, and provenance separately from packet timestamps and captured evidence.
+- [x] Bound lookup execution/output and support cancellation; distinguish no-answer/NXDOMAIN from operation failure. Do not retry invalid input, authorization, or decoder/schema failures.
+
+Acceptance: multi-answer packets cannot cross-associate unrelated owners/addresses; expired/replaced answers do not label later flows; client-bound certificate traffic does not assign a server name to the client; passive analysis makes no resolver request; current lookup never becomes historical evidence or overwrites captured names.
+
+Verification: real TShark DNS/mDNS/CNAME/TLS-direction integration using isolated known data, frame linkage/TTL/negative-answer cases, and a separately scoped user-triggered resolver integration. If no controlled resolver environment is available, report lookup execution and error behavior unverified; do not claim live success from fabricated responses.
+
+### M5 — verified original packet bytes
+
+Affected: existing hash/process boundaries; new raw-packet decoder model and inspector UI; packet artifact references. Depends on M1/M2; independent of inferred hostname/session links.
+
+- [x] Decode only the selected original frame on demand with TShark `jsonraw`, explicit deadline/output/frame-byte bounds, and cancellation. Do not retain all payloads during initial analysis.
+- [x] Require a completed matching artifact; verify source hash before/after extraction and reject missing, changed, growing, or wrong-artifact evidence.
+- [x] Validate one-frame response shape, captured length, raw hex, offset/range bounds, and byte equality before highlighting a field. Keep PCAPNG option metadata, synthesized/reassembled fields, and unverifiable ranges explicitly unmapped.
+- [x] Provide bounded hex windows and selected-field explanation with reveal-original/return navigation. Keep bytes out of existing exports by default.
+- [ ] Measure whole-file rehash/dissection cost at 50,000/100,000 packets. Any caching must preserve verified artifact identity and changed-source detection, rather than relying solely on modification time.
+
+Acceptance: shown bytes equal the selected saved frame; verified highlights match exact byte slices; container process labels are not falsely presented as packet-byte ranges; pending/failed integrity, truncation, source mutation, and missing originals fail with specific recovery guidance.
+
+Verification: real-TShark exact-byte/range integration, wrong/changed/missing/growing capture denial, raw JSON/hex/range boundary cases, and native navigation/performance. Source is unchanged before/after.
+
+### M6 — integration, performance, and physical evidence
+
+Affected: existing test targets, native interaction validation, compatibility evidence/docs only where validated behavior changes. Depends on M1–M5; resource measurements start in M1.
+
+- [x] Run required native build/tests after final code edits, preserving meaningful existing tests. Compatibility tool/guidance is unchanged, so its separate checks are not required for this implementation. Executed/skipped/blocked scopes are recorded below.
+- [x] Benchmark generated 50,000 and 100,000 packets with the real decoder: total analysis time (including hashes/session generation), process RSS high-water mark, pure filter/selection queries, and caller/explicit cancellation. Record host/tool versions and distinguish generated inputs from physical-device evidence.
+- [x] Verify pure query filter/selection p95 ≤300 ms and cancellation acknowledgment ≤1 s on those generated datasets. The 200,000-record/256-MiB estimated-storage limits are explicit failure ceilings, not measured capacity claims.
+- [ ] Measure full native filter/selection/scrolling interaction, session navigation latency, separate session-generation cost, and original-byte inspection/rehash cost. Apply the same latency targets to the native UI and record host/tool/input context.
+- [x] Confirm the decoder uses a fixed number of passes rather than rescanning growing prefixes per batch; retain compact records and fetch raw bytes only for an explicit selected-frame request.
+- [ ] Verify native main-thread responsiveness and repeated packet-detail selection/release memory behavior.
+- [ ] With an authorized connected/unlocked/trusted physical device, run a bounded PCAPNG capture through Sentinel's existing workflow; inspect metadata availability, stop/finalization, hashes, cleanup, reopening, and native packet/session views.
+- [ ] Validate available process/effective-process/interface/direction fields against the device-source file using independent TShark inspection. Record absent labels as absent; a physical run without labels does not establish that no compatible capture can contain them.
+- [ ] Execute explicit current PTR lookup against a controlled resolver; verify success, NXDOMAIN/no-answer, timeout, cancellation, result time, and no mutation of captured evidence. Parser checks alone do not validate actual resolver interaction.
+- [x] Exercise real decoder integration with metadata-free classic RAW PCAP, malformed evidence, missing/changed originals, and existing aggregate/baseline/report checks. Original bytes remain unchanged in successful tests.
+- [ ] Complete native reopen/navigation and moved/growing/truncated-original interaction checks, including the existing baseline and report workflows.
+
+Acceptance: all applicable checks and required native interactions pass; supported capacity and latency are measured; saved-file versus physical/live verification are separately stated; unresolved device/metadata/service gaps remain explicit. No new Mac collection or correlation is introduced.
+
+Required native commands from the Sentinel root:
+
+```sh
+xcodebuild -project RVISentinel.xcodeproj -scheme RVISentinel -derivedDataPath DerivedData build-for-testing CODE_SIGNING_ALLOWED=NO
+xcodebuild -project RVISentinel.xcodeproj -scheme RVISentinel -derivedDataPath DerivedData test-without-building CODE_SIGNING_ALLOWED=NO
+```
+
+If compatibility tooling/guidance changes, follow the existing CI commands:
+
+```sh
+swift test --package-path Tools/Compatibility
+swift run --package-path Tools/Compatibility check-compatibility docs/compatibility-evidence.json docs/COMPATIBILITY.md
+```
+
+## Verification status and source references
+
+Source and generated-capture decoding are verified; final native suite results and performance evidence are recorded below. Native automation verified the stable Analysis entry, file chooser, capture selection, passive analysis start, busy controls, and pending integrity, then its connection closed before completed results could be inspected. Timeline/inspector/session traversal and scrolling remain unverified. No active DNS lookup or physical-device capture was executed. Generated format tests do not establish actual iPhone metadata availability. `PhysicalWorkflowTests` analyzes a supplied saved file; it does not create/capture/remove an RVI. [S8]
+
+### Executed local checks
+
+| Check | Outcome | Scope |
+| --- | --- | --- |
+| Native Debug `build-for-testing`, `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES` | Passed | Full app/test sources, Swift 6 complete concurrency. |
+| Native Debug `test-without-building` | Passed: 74 XCTest tests, 4 skips, 0 failures; 15 Swift Testing tests passed in the focused PR diff | Real TShark metadata/classic/DNS/mDNS/HTTP/raw-byte integrations, bounded process/file failures, timestamps, queries/sessions, existing baselines/exports. Three opt-in performance tests and one supplied physical-capture test are skipped in the ordinary run. The full local working tree also ran one pre-existing, unstaged PCAPNG test. |
+| Optimized Release `build-for-testing`, command-scoped testability and Swift warnings as errors | Passed | Final sources; release project settings remain unchanged. |
+| Opt-in optimized packet performance tests | Passed: 3 tests, 0 failures | Final 50k/100k decode/query measurements and both caller/explicit cancellation checks. Cancellation after 5,000 decoded packets acknowledged within 1 second, returned no completed result, and preserved input hashes. |
+| `git diff --check` and final read-only source review | Passed | Whitespace/scope and metadata/session/time/lookup/raw-byte/cancellation contracts; not runtime UI proof. |
+| Preservation snapshot | Passed before branch packaging | All 180 RVI-Correlator baseline files matched and its status was clean. The unrelated pre-existing Sentinel compatibility tooling, artwork, CI workflow, and scheme were excluded from this focused change. |
+| Compatibility CLI | Not run | Its source, guidance, and CI commands were unchanged. |
+| Native timeline/session/byte/current-lookup UI; physical RVI; controlled resolver | Incomplete / unexecuted | Native automation lost its connection after analysis started. Physical capture and resolver acceptance need the environments described below. |
+
+### Remaining observable acceptance
+
+- Native browsing: load the generated metadata fixture or an authorized saved RVI file; select **Packets & Sessions**, search `maild`/`343`, exercise protocol/interface/direction filters and both endpoints, select a row, then traverse Sessions → focused Timeline → packet → Return to Session. Confirm all members, exact epochs, unknown labels, restored selection/filter state, paging, and responsive scrolling at 100,000 packets. Use the existing stable accessibility IDs for automation.
+- Byte inspection: select a packet and request original bytes; check bounded windows and verified field ranges, then move/change the task-owned test original and confirm a specific error. Measure rehash/dissection latency on 50,000/100,000-packet input and memory after repeated selection/cancellation. Do not alter a user's original evidence for this check.
+- Current DNS: use a controlled resolver and explicitly initiate a selected-IP lookup. Confirm separate request/completion time, success/no-answer/NXDOMAIN, timeout/cancellation, and unchanged captured names. This remains unexecuted locally.
+- Physical RVI: use an authorized trusted device and the existing bounded capture workflow; verify stop/finalization, cleanup, format/hash, reopening, native navigation, and optional metadata against the device-source file. An unlocked Mac alone is insufficient for this acceptance.
+
+### Reproducible optimized measurements
+
+The generated RAW inputs contain 50,000/100,000 loopback UDP frames, one eligible session, and no process labels. They are format fixtures written to temporary files; no packets are transmitted. Measurements use macOS 27.0 (26A428), Xcode 27, Swift 6 complete concurrency, and TShark 4.6.9. Analysis time includes tool probes, hashes, decoding, indexing, and session construction. Filter/selection latency measures pure queries, not native rendering or user interaction. RSS is the test process's high-water mark across preceding work; it excludes the separate TShark child's RSS and is not incremental per-capture usage.
+
+```sh
+xcodebuild -project RVISentinel.xcodeproj -scheme RVISentinel -configuration Release -derivedDataPath DerivedDataRelease build-for-testing CODE_SIGNING_ALLOWED=NO ENABLE_TESTABILITY=YES SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
+TEST_RUNNER_RVI_SENTINEL_RUN_PACKET_PERFORMANCE=1 xcodebuild -project RVISentinel.xcodeproj -scheme RVISentinel -configuration Release -derivedDataPath DerivedDataRelease test-without-building CODE_SIGNING_ALLOWED=NO ENABLE_TESTABILITY=YES -only-testing:RVISentinelTests/PacketPerformanceTests
+```
+
+`ENABLE_TESTABILITY=YES` is a command-scoped flag for the existing `@testable` tests in an optimized build; project release settings are unchanged. Test-owned build artifacts are kept outside the review diff after verification. Native Debug build/test commands remain the required integration checks above.
+
+| Generated packets | Total analysis seconds | Filter p95 ms (20 queries) | Single-record query p95 ms (20 queries) | Estimated retained record bytes | Test-process RSS high-water bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 50,000 | 4.144 | 117.668 | 17.267 | 74,700,000 | 317,095,936 |
+| 100,000 | 7.185 | 234.651 | 34.545 | 149,400,000 | 498,794,496 |
+
+These final optimized query measurements pass the ≤300-ms target. They do not establish UI rendering/scrolling latency, DNS-heavy throughput, whole-file original-byte inspection cost, or support at the failure ceilings. The ordinary native suite passes separately; three opt-in tests then run explicitly, while the physical-capture test remains skipped.
+
+The pure DNS resolver additionally returned 1,000 associations from 1,000 repeated answer refreshes plus 1,000 flows in 0.01224 seconds in an optimized temporary harness. This validates the indexed refresh path on synthetic typed inputs, not real DNS-heavy capture throughput or physical-device behavior. Equal timestamps use frame ordering; later answers cannot name earlier packets.
+
+Sentinel references:
+
+- **S1:** [CaptureCoordinator.capture / makeAuthorizedCapturePlan / sha256](Sources/RVISentinel/CaptureCoordinator.swift#L167), command at line 497 and hash at line 600; [PCAPNG default and completion view](Sources/RVISentinel/DeviceCaptureView.swift#L6).
+- **S2:** [TSharkField](Sources/RVISentinel/AnalysisModels.swift#L57), [DecodedPacket](Sources/RVISentinel/AnalysisModels.swift#L189), and [NativeAnalysisResult](Sources/RVISentinel/AnalysisModels.swift#L268).
+- **S3:** [TSharkAnalyzer.analyze](Sources/RVISentinel/TSharkAnalyzer.swift#L31), [passive tsharkArguments](Sources/RVISentinel/TSharkAnalyzer.swift#L160), and [BoundedDecoder](Sources/RVISentinel/BoundedDecoder.swift#L88).
+- **S4:** [prepareCompletedCaptureForAnalysis](Sources/RVISentinel/AppState.swift#L206), [chooseAnalysisCapture](Sources/RVISentinel/AppState.swift#L218), and [startAnalysis](Sources/RVISentinel/AppState.swift#L248).
+- **S5:** [AnalysisAccumulator.consume](Sources/RVISentinel/PacketAnalysis.swift#L59), [aggregate hostname evidence](Sources/RVISentinel/PacketAnalysis.swift#L277), [structured owner/RDATA pairing](Sources/RVISentinel/PacketAnalysis.swift#L303), [packet decoding](Sources/RVISentinel/PacketDecoding.swift#L26), and [relative TCP detail labels](Sources/RVISentinel/ProtocolDetails.swift#L33).
+- **S6:** [AnalysisView](Sources/RVISentinel/AnalysisView.swift#L4), [PacketBrowserView](Sources/RVISentinel/PacketBrowserView.swift#L28), and [PacketInspectorView](Sources/RVISentinel/PacketInspectorView.swift#L4). Stable packet/session controls have `analysis.packet.*`, `analysis.session.*`, and `analysis.timeline.*` accessibility IDs.
+- **S7:** [EvidenceProvenance / HostnameEvidence / ProcessAttribution](Sources/RVISentinel/Models.swift#L192); [versioned report model](Sources/RVISentinel/ExportModels.swift#L75).
+- **S8:** [decoder integration tests](Tests/RVISentinelTests/AnalyzerPacketIntegrationTests.swift#L6), [DNS/raw evidence integration](Tests/RVISentinelTests/PacketEvidenceIntegrationTests.swift#L8), [generated performance tests](Tests/RVISentinelTests/PacketPerformanceTests.swift#L5), [supplied-file physical workflow](Tests/RVISentinelTests/PhysicalWorkflowTests.swift#L6), [documented native commands](README.md#L378), [compatibility CI commands](.github/workflows/native-macos.yml#L39), and [macOS 14 / Swift 6 configuration](project.yml#L4).
+- **S9:** [PacketCaptureArtifact / exact decoded PacketTimestamp / PacketRecord](Sources/RVISentinel/PacketModels.swift#L28), [bounded packet index and queries](Sources/RVISentinel/PacketIndex.swift#L25), [makePacketSessions](Sources/RVISentinel/PacketSessions.swift#L51), and [session queries](Sources/RVISentinel/PacketBrowsing.swift#L10).
+- **S10:** [structured DNS read/decode](Sources/RVISentinel/CapturedDNSRecords.swift#L66), [resolveCapturedHostnames](Sources/RVISentinel/CapturedHostnames.swift#L28), [TTL/client/interface/replacement scope](Sources/RVISentinel/CapturedHostnames.swift#L201), and [explicit lookupCurrentPTR](Sources/RVISentinel/CurrentDNSLookup.swift#L49).
+- **S11:** [hashCaptureBytes](Sources/RVISentinel/CaptureEvidenceHash.swift#L24), [inspectOriginalPacket](Sources/RVISentinel/OriginalPacketBytes.swift#L60), and [raw-byte view](Sources/RVISentinel/PacketRawBytesView.swift#L4).
+
+Read-only Correlator references:
+
+- **C1:** [runCapture / device tcpdump arguments](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CaptureWorker/main.swift#L123), device writer at line 156.
+- **C2:** [packetFields / parseEpochMicroseconds / decodeGrowingCapture / importCapture](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorCore/Import.swift#L4), precision at line 56, batching at line 96, static identity/hash at line 142.
+- **C3:** [Observation process/interface/direction](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorCore/Models.swift#L38); [timestamp resolution description](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorCore/CaptureClock.swift#L3).
+- **C4:** [publishCaptureFiles](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorCore/ProtectedCapture.swift#L257).
+- **C5:** [TimelineView](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorApp/InvestigationViews.swift#L120), packet inspector at line 346; [timeline search](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorApp/ContentView.swift#L94); [field explanations](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorApp/FieldCatalog.swift#L8).
+- **C6:** [sessionKey / packetSessions](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorCore/PacketSession.swift#L43), RVI display-label gap at line 83; [endpoint ambiguity](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorCore/PacketEndpoint.swift#L14); [session navigation](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorApp/SessionViews.swift#L15).
+- **C7:** [resolveHostnames and evidence scope](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorCore/HostnameEvidence.swift#L39).
+- **C8:** [structured DNS resource-record decoding](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorCore/DNSRecords.swift#L57).
+- **C9:** [ActiveDNSLookup](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorApp/ActiveDNSLookup.swift#L23); [separate lookup UI](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorApp/EvidenceExplanationViews.swift#L53).
+- **C10:** [inspectRawPacket](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorCore/RawPacketEvidence.swift#L62); [bounded hex UI](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorApp/RawPacketView.swift#L23).
+- **C11:** [packet budgets](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorCore/PacketBudget.swift#L3); [decoder batching/bounds](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorCore/Import.swift#L96); [formatting](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorApp/UIComponents.swift#L81).
+- **C12:** [two-source investigation guard](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorApp/ContentViewActions.swift#L127); [two-source live finalization](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorApp/LiveCaptureService.swift#L190); [two-source live rebuild](https://github.com/hideouts-io/RVI-Correlator/blob/12c62bba8bbe6aeb99493d93e748fb24ac640f15/Sources/CorrelatorApp/LiveCaptureView.swift#L257).
+
+External primary references, checked alongside the installed field catalog:
+
+- **W1:** [Wireshark frame field reference](https://www.wireshark.org/docs/dfref/f/frame.html), including Darwin process/effective-process and direction fields. Darwin process fields are listed from Wireshark 4.6.0; negotiate capabilities rather than assume older decoders expose them.
+- **W2:** [Wireshark PKTAP field reference](https://www.wireshark.org/docs/dfref/p/pktap.html).
+- **W3:** [TShark manual](https://www.wireshark.org/docs/man-pages/tshark.html), output formats and name-resolution options. The installed Apple `man tcpdump` documents `-P`/`--apple-pcapng` as aliases.

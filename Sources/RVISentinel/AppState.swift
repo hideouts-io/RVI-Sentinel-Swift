@@ -15,6 +15,10 @@ final class AppState: ObservableObject {
     @Published private(set) var captureCompletion: CaptureCompletion?
     @Published private(set) var captureRecovery: CaptureRecovery?
     @Published var analysisCaptureURL: URL?
+    @Published var importedCaptureSource = PacketSourceProvenance.unknown
+    @Published private(set) var analysisIntegrity: PacketIntegrityState?
+    private var expectedAnalysisSHA256: String?
+    private var analysisOperationID: UUID?
     @Published private(set) var isAnalyzing = false
     @Published private(set) var analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Choose an authorized capture to begin.")
     @Published private(set) var analysisResult: NativeAnalysisResult?
@@ -72,7 +76,7 @@ final class AppState: ObservableObject {
             discoveryService: discovery,
             interfaceService: interfaceService
         )
-        let analyzer = TSharkAnalyzer(processRunner: runner)
+        let analyzer = TSharkAnalyzer(decoder: BoundedDecoder())
         let output = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
         return AppState(
             discoveryService: discovery,
@@ -200,14 +204,19 @@ final class AppState: ObservableObject {
     }
 
     func prepareCompletedCaptureForAnalysis() {
+        guard !isAnalyzing else { lastError = "Wait for the running analysis or cancel it before selecting another capture."; return }
         guard let captureCompletion else { return }
         analysisCaptureURL = captureCompletion.savedURL
+        importedCaptureSource = .liveDeviceRVI
+        expectedAnalysisSHA256 = captureCompletion.sha256
+        analysisIntegrity = nil
         analysisResult = nil
         interfaces = []
-        analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Ready to analyze the completed capture with IPv4 and IPv6 resolution enabled.")
+        analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Ready to analyze the completed RVI capture passively.")
     }
 
     func chooseAnalysisCapture() {
+        guard !isAnalyzing else { lastError = "Wait for the running analysis or cancel it before selecting another capture."; return }
         let panel = NSOpenPanel()
         panel.title = "Choose an Authorized Packet Capture"
         panel.prompt = "Choose"
@@ -226,37 +235,51 @@ final class AppState: ObservableObject {
                 return
             }
             analysisCaptureURL = selectedURL
+            importedCaptureSource = .unknown
+            expectedAnalysisSHA256 = nil
+            analysisIntegrity = nil
             analysisResult = nil
             interfaces = []
             baselineComparison = nil
-            analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Ready to analyze locally with IPv4 and IPv6 resolution enabled.")
+            analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Ready to analyze locally without active DNS lookups.")
         }
     }
 
     func startAnalysis() async {
+        guard !isAnalyzing else { lastError = "An analysis is already running. Wait for completion or cancel it."; return }
         guard let analysisCaptureURL else {
             lastError = "Choose an authorized capture first."
             return
         }
+        let operationID = UUID()
+        analysisOperationID = operationID
         isAnalyzing = true
+        analysisIntegrity = .pending
         analysisResult = nil
         interfaces = []
         lastError = nil
         do {
-            let result = try await analyzer.analyze(captureURL: analysisCaptureURL) { [weak self] update in
-                Task { @MainActor in self?.analysisProgress = update }
+            let result = try await analyzer.analyze(captureURL: analysisCaptureURL, source: importedCaptureSource, expectedCaptureSHA256: expectedAnalysisSHA256) { [weak self] update in
+                Task { @MainActor in
+                    guard self?.analysisOperationID == operationID else { return }
+                    self?.analysisProgress = update
+                }
             }
             analysisResult = result
+            analysisIntegrity = result.packetAnalysis?.artifact.integrity
             interfaces = captureReportedIOSInterfaces(names: result.summary.interfaces)
             if let baselineDocument {
                 baselineComparison = compareBaseline(document: baselineDocument, result: result, comparedAt: Date())
             }
         } catch is CancellationError {
+            analysisIntegrity = .failed(detail: "Analysis cancelled before source verification completed.")
             analysisProgress = AnalysisProgress(decodedPackets: analysisProgress.decodedPackets, status: "Analysis cancelled. The original capture was not changed.")
         } catch {
+            analysisIntegrity = .failed(detail: error.localizedDescription)
             lastError = error.localizedDescription
             analysisProgress = AnalysisProgress(decodedPackets: analysisProgress.decodedPackets, status: error.localizedDescription)
         }
+        analysisOperationID = nil
         isAnalyzing = false
     }
 

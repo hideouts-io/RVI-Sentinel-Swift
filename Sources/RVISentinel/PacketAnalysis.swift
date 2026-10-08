@@ -68,7 +68,7 @@ struct AnalysisAccumulator {
         byteCount += length
         firstPacket = minDate(firstPacket, timestamp)
         lastPacket = maxDate(lastPacket, timestamp)
-        if let interfaceName = packet.first(.frameInterfaceName), !interfaceName.isEmpty {
+        for interfaceName in packet.all(.frameInterfaceName) + packet.all(.pktapInterfaceName) where !interfaceName.isEmpty {
             interfaces.insert(interfaceName)
         }
 
@@ -283,29 +283,40 @@ struct AnalysisAccumulator {
                 timestamp: timestamp
             )
         }
-        let answerAddresses = packet.all(.dnsA) + packet.all(.dnsAAAA)
-        let responseNames = packet.all(.dnsResponseName)
-        for name in responseNames {
-            let provenance = capturedDNSProvenance(name: name, isResponse: true, packet: packet)
-            if answerAddresses.isEmpty {
-                addHostname(name, address: nil, provenance: provenance, timestamp: timestamp)
-            } else {
-                for address in answerAddresses {
-                    addHostname(name, address: address, provenance: provenance, timestamp: timestamp)
-                }
-            }
+        // Flat response arrays do not preserve RR ownership. Pair only structured records.
+        for name in packet.all(.dnsResponseName) {
+            addHostname(name, address: nil, provenance: capturedDNSProvenance(name: name, isResponse: true, packet: packet), timestamp: timestamp)
         }
         addHostnames(packet.all(.dnsPTR), address: nil, provenance: .capturedPTR, timestamp: timestamp)
         let sniProvenance: EvidenceProvenance = frameProtocolTokens(packet: packet).contains("quic") ? .quicHandshake : .tlsSNI
         addHostnames(packet.all(.tlsSNI), address: destinationAddress, provenance: sniProvenance, timestamp: timestamp)
-        addHostnames(packet.all(.certificateDNSName), address: destinationAddress, provenance: .certificate, timestamp: timestamp)
+        addHostnames(packet.all(.certificateDNSName), address: nil, provenance: .certificate, timestamp: timestamp)
         addHostnames(packet.all(.httpHost), address: destinationAddress, provenance: .httpHost, timestamp: timestamp)
-        addHostnames(packet.all(.http2Authority), address: destinationAddress, provenance: .http2Authority, timestamp: timestamp)
-        addHostnames(packet.all(.http3Authority), address: destinationAddress, provenance: .http3Authority, timestamp: timestamp)
+        addHostnames(packet.all(.http2Authority), address: nil, provenance: .http2Authority, timestamp: timestamp)
+        addHostnames(packet.all(.http3Authority), address: nil, provenance: .http3Authority, timestamp: timestamp)
         addResolvedHostnames(addresses: packet.all(.ipv4Source), hostnames: packet.all(.ipv4SourceHost), timestamp: timestamp)
         addResolvedHostnames(addresses: packet.all(.ipv4Destination), hostnames: packet.all(.ipv4DestinationHost), timestamp: timestamp)
         addResolvedHostnames(addresses: packet.all(.ipv6Source), hostnames: packet.all(.ipv6SourceHost), timestamp: timestamp)
         addResolvedHostnames(addresses: packet.all(.ipv6Destination), hostnames: packet.all(.ipv6DestinationHost), timestamp: timestamp)
+    }
+
+    mutating func consumeCapturedDNS(messages: [CapturedDNSMessage], records: [PacketRecord]) {
+        let packets = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+        for message in messages where message.isResponse && !message.isTruncated && message.responseCode == 0 {
+            guard let packet = packets[message.packetID] else { continue }
+            for record in message.answers {
+                guard let owner = record.owner else { continue }
+                let address: String
+                switch record.value {
+                case let .ipv4(value), let .ipv6(value):
+                    guard record.recordClass & 0x7fff == 1 else { continue }
+                    address = value
+                case .canonicalName, .pointerName, .service: continue
+                }
+                let provenance: EvidenceProvenance = packet.protocolStack.contains("mdns") ? .capturedMDNS : .capturedDNSAnswer
+                addHostname(owner, address: address, provenance: provenance, timestamp: packet.timestamp.displayDate)
+            }
+        }
     }
 
     private mutating func addResolvedHostnames(addresses: [String], hostnames: [String], timestamp: Date) {

@@ -13,7 +13,7 @@ final class PhysicalWorkflowTests: XCTestCase {
             try FileManager.default.removeItem(at: workingDirectory)
         }
 
-        let analyzer = TSharkAnalyzer(processRunner: ProcessRunner())
+        let analyzer = TSharkAnalyzer(decoder: BoundedDecoder())
         let result = try await analyzer.analyze(captureURL: captureURL) { _ in }
 
         XCTAssertGreaterThan(result.summary.packetCount, 0)
