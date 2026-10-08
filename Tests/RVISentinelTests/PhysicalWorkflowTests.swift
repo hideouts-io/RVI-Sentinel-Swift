@@ -20,7 +20,7 @@ final class PhysicalWorkflowTests: XCTestCase {
         XCTAssertFalse(result.endpoints.isEmpty)
         XCTAssertFalse(result.protocols.isEmpty)
         XCTAssertFalse(result.summary.captureSHA256.isEmpty)
-        XCTAssertTrue(result.coverage.activeResolutionEnabled)
+        XCTAssertFalse(result.coverage.activeResolutionEnabled)
         let observedIOSInterfaces: [NetworkInterfaceInfo] = captureReportedIOSInterfaces(names: result.summary.interfaces)
         XCTAssertFalse(observedIOSInterfaces.isEmpty)
         XCTAssertTrue(observedIOSInterfaces.allSatisfy { $0.owner == .ios && $0.isUp })

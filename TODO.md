@@ -1,6 +1,6 @@
 # RVI capture and analysis roadmap
 
-Status: the core RVI-only implementation is ready for review. Native browsing, controlled resolver, and physical-device acceptance remain pending. This is the canonical implementation and validation checklist.
+Status: the core RVI-only implementation is ready for review. Physical-device capture and saved-file workflow checks pass; native browsing and controlled resolver acceptance remain pending. This is the canonical implementation and validation checklist.
 
 ## Scope and reviewed baseline
 
@@ -155,8 +155,10 @@ Affected: existing test targets, native interaction validation, compatibility ev
 - [ ] Measure full native filter/selection/scrolling interaction, session navigation latency, separate session-generation cost, and original-byte inspection/rehash cost. Apply the same latency targets to the native UI and record host/tool/input context.
 - [x] Confirm the decoder uses a fixed number of passes rather than rescanning growing prefixes per batch; retain compact records and fetch raw bytes only for an explicit selected-frame request.
 - [ ] Verify native main-thread responsiveness and repeated packet-detail selection/release memory behavior.
-- [ ] With an authorized connected/unlocked/trusted physical device, run a bounded PCAPNG capture through Sentinel's existing workflow; inspect metadata availability, stop/finalization, hashes, cleanup, reopening, and native packet/session views.
-- [ ] Validate available process/effective-process/interface/direction fields against the device-source file using independent TShark inspection. Record absent labels as absent; a physical run without labels does not establish that no compatible capture can contain them.
+- [x] Run an authorized bounded PCAPNG capture through Sentinel's existing UI workflow; verify requested duration, finalization, original format, readable packet count, independent SHA-256 agreement, and temporary RVI removal. The user operated capture controls after native automation disconnected; observation of saved output and process/interface state verified completion.
+- [x] Validate available process/effective-process/interface/direction fields against the device-source file using independent passive TShark inspection. Recorded process names/PIDs, interface, and direction were present; effective-process labels were absent. These remain capture metadata rather than independently verified process identity.
+- [x] Confirm the completed physical capture opens for local analysis and displays Summary and Packets & Sessions results. The user confirmed these results are visible; automated UI verification remains blocked.
+- [ ] Verify completed physical-capture reopening, packet/session traversal, and inspector navigation in the UI.
 - [ ] Execute explicit current PTR lookup against a controlled resolver; verify success, NXDOMAIN/no-answer, timeout, cancellation, result time, and no mutation of captured evidence. Parser checks alone do not validate actual resolver interaction.
 - [x] Exercise real decoder integration with metadata-free classic RAW PCAP, malformed evidence, missing/changed originals, and existing aggregate/baseline/report checks. Original bytes remain unchanged in successful tests.
 - [ ] Complete native reopen/navigation and moved/growing/truncated-original interaction checks, including the existing baseline and report workflows.
@@ -179,27 +181,28 @@ swift run --package-path Tools/Compatibility check-compatibility docs/compatibil
 
 ## Verification status and source references
 
-Source and generated-capture decoding are verified; final native suite results and performance evidence are recorded below. Native automation verified the stable Analysis entry, file chooser, capture selection, passive analysis start, busy controls, and pending integrity, then its connection closed before completed results could be inspected. Timeline/inspector/session traversal and scrolling remain unverified. No active DNS lookup or physical-device capture was executed. Generated format tests do not establish actual iPhone metadata availability. `PhysicalWorkflowTests` analyzes a supplied saved file; it does not create/capture/remove an RVI. [S8]
+Source, generated-capture decoding, and an authorized physical-device capture are verified; native suite results and performance evidence are recorded below. Native automation verified the stable Analysis entry, file chooser, capture selection, passive analysis start, busy controls, and pending integrity, then its connection closed before completed results could be inspected. The user subsequently started a 120-second capture in Sentinel's UI and confirmed that Summary and Packets & Sessions results are visible after local analysis. Saved-file validation, independent hashes, passive metadata decoding, and RVI removal passed. Timeline/inspector/session traversal and scrolling remain unverified; no active DNS lookup was executed. Generated format tests alone do not establish actual iPhone metadata availability. `PhysicalWorkflowTests` now passes against the completed device-source file, covering analysis, baseline comparison/update, local exports, and redacted diagnostics; it does not create/capture/remove an RVI. [S8]
 
 ### Executed local checks
 
 | Check | Outcome | Scope |
 | --- | --- | --- |
 | Native Debug `build-for-testing`, `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES` | Passed | Full app/test sources, Swift 6 complete concurrency. |
-| Native Debug `test-without-building` | Passed: 74 XCTest tests, 4 skips, 0 failures; 15 Swift Testing tests passed in the focused PR diff | Real TShark metadata/classic/DNS/mDNS/HTTP/raw-byte integrations, bounded process/file failures, timestamps, queries/sessions, existing baselines/exports. Three opt-in performance tests and one supplied physical-capture test are skipped in the ordinary run. The full local working tree also ran one pre-existing, unstaged PCAPNG test. |
+| Native Debug `test`, Swift warnings as errors, supplied physical capture enabled | Passed: 87 tests, 3 skips, 0 failures | Real TShark metadata/classic/DNS/mDNS/HTTP/raw-byte integrations, bounded process/file failures, timestamps, queries/sessions, and the supplied physical-file analysis/baseline/export/diagnostic workflow. The stale physical-workflow assertion now requires passive analysis. Three opt-in performance tests are executed separately in Release mode. The local working tree includes one pre-existing, unstaged PCAPNG test. |
 | Optimized Release `build-for-testing`, command-scoped testability and Swift warnings as errors | Passed | Final sources; release project settings remain unchanged. |
 | Opt-in optimized packet performance tests | Passed: 3 tests, 0 failures | Final 50k/100k decode/query measurements and both caller/explicit cancellation checks. Cancellation after 5,000 decoded packets acknowledged within 1 second, returned no completed result, and preserved input hashes. |
 | `git diff --check` and final read-only source review | Passed | Whitespace/scope and metadata/session/time/lookup/raw-byte/cancellation contracts; not runtime UI proof. |
 | Preservation snapshot | Passed before branch packaging | All 180 RVI-Correlator baseline files matched and its status was clean. The unrelated pre-existing Sentinel compatibility tooling, artwork, CI workflow, and scheme were excluded from this focused change. |
-| Compatibility CLI | Not run | Its source, guidance, and CI commands were unchanged. |
-| Native timeline/session/byte/current-lookup UI; physical RVI; controlled resolver | Incomplete / unexecuted | Native automation lost its connection after analysis started. Physical capture and resolver acceptance need the environments described below. |
+| Compatibility package `swift test --package-path Tools/Compatibility` | Passed: 7 tests, 0 failures | Existing local compatibility tooling remains unchanged. The separate compatibility-document checker was not run. |
+| Physical RVI capture and independent file validation | Passed | User-started Sentinel UI capture, bounded capture command, valid Apple PCAPNG, readable packets and recorded metadata, matching independent hashes, and verified absence of the temporary RVI. Private capture data and identifiers remain outside the repository. |
+| Native timeline/session/byte/current-lookup UI; controlled resolver | Incomplete / unexecuted | Native automation remains disconnected. Completed physical-capture UI traversal and controlled resolver acceptance still need the interactions described below. |
 
 ### Remaining observable acceptance
 
 - Native browsing: load the generated metadata fixture or an authorized saved RVI file; select **Packets & Sessions**, search `maild`/`343`, exercise protocol/interface/direction filters and both endpoints, select a row, then traverse Sessions → focused Timeline → packet → Return to Session. Confirm all members, exact epochs, unknown labels, restored selection/filter state, paging, and responsive scrolling at 100,000 packets. Use the existing stable accessibility IDs for automation.
 - Byte inspection: select a packet and request original bytes; check bounded windows and verified field ranges, then move/change the task-owned test original and confirm a specific error. Measure rehash/dissection latency on 50,000/100,000-packet input and memory after repeated selection/cancellation. Do not alter a user's original evidence for this check.
 - Current DNS: use a controlled resolver and explicitly initiate a selected-IP lookup. Confirm separate request/completion time, success/no-answer/NXDOMAIN, timeout/cancellation, and unchanged captured names. This remains unexecuted locally.
-- Physical RVI: use an authorized trusted device and the existing bounded capture workflow; verify stop/finalization, cleanup, format/hash, reopening, native navigation, and optional metadata against the device-source file. An unlocked Mac alone is insufficient for this acceptance.
+- Physical RVI UI: reopen the completed authorized device-source capture and verify native timeline, inspector, session navigation, and original-byte actions. Capture finalization, cleanup, format/hash, optional metadata, and supplied-file workflow checks have passed; those checks do not establish native navigation.
 
 ### Reproducible optimized measurements
 
@@ -214,10 +217,10 @@ TEST_RUNNER_RVI_SENTINEL_RUN_PACKET_PERFORMANCE=1 xcodebuild -project RVISentine
 
 | Generated packets | Total analysis seconds | Filter p95 ms (20 queries) | Single-record query p95 ms (20 queries) | Estimated retained record bytes | Test-process RSS high-water bytes |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 50,000 | 4.144 | 117.668 | 17.267 | 74,700,000 | 317,095,936 |
-| 100,000 | 7.185 | 234.651 | 34.545 | 149,400,000 | 498,794,496 |
+| 50,000 | 3.888 | 116.868 | 17.105 | 74,700,000 | 297,943,040 |
+| 100,000 | 6.740 | 229.571 | 33.451 | 149,400,000 | 481,263,616 |
 
-These final optimized query measurements pass the ≤300-ms target. They do not establish UI rendering/scrolling latency, DNS-heavy throughput, whole-file original-byte inspection cost, or support at the failure ceilings. The ordinary native suite passes separately; three opt-in tests then run explicitly, while the physical-capture test remains skipped.
+These optimized query measurements pass the ≤300-ms target. They do not establish UI rendering/scrolling latency, DNS-heavy throughput, whole-file original-byte inspection cost, or support at the failure ceilings. The native suite passes separately with the supplied physical capture enabled; the three opt-in tests run explicitly in Release mode.
 
 The pure DNS resolver additionally returned 1,000 associations from 1,000 repeated answer refreshes plus 1,000 flows in 0.01224 seconds in an optimized temporary harness. This validates the indexed refresh path on synthetic typed inputs, not real DNS-heavy capture throughput or physical-device behavior. Equal timestamps use frame ordering; later answers cannot name earlier packets.
 
