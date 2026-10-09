@@ -54,7 +54,7 @@ func generatedAppleMetadataPacketCapture() throws -> Data {
     return result
 }
 
-private func generatedLoopbackUDPPacket() -> Data {
+func generatedLoopbackUDPPacket() -> Data {
     Data([
         0x45, 0x00, 0x00, 0x1c, 0x00, 0x01, 0x00, 0x00,
         0x40, 0x11, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x01,

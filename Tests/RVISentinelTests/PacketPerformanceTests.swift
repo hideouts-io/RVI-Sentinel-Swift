@@ -52,7 +52,7 @@ final class PacketPerformanceTests: XCTestCase {
         guard ProcessInfo.processInfo.environment["RVI_SENTINEL_RUN_PACKET_PERFORMANCE"] == "1" else {
             throw XCTSkip("Set RVI_SENTINEL_RUN_PACKET_PERFORMANCE=1 to run the bounded large-capture integration benchmark.")
         }
-        guard resolveTShark() != nil else { throw XCTSkip("TShark is not installed on this host.") }
+        guard let tshark = resolveTShark() else { throw XCTSkip("TShark is not installed on this host.") }
         let directory = try createTemporaryTestDirectory()
         addTeardownBlock { try FileManager.default.removeItem(at: directory) }
         for count in [50_000, 100_000] {
@@ -78,8 +78,13 @@ final class PacketPerformanceTests: XCTestCase {
             XCTAssertEqual(packets.artifact.id.sha256, digest)
             XCTAssertEqual(try sha256(url: capture), digest)
 
+            let sessionStart = clock.now
+            let rebuiltSessions = try makePacketSessions(records: packets.records, artifact: packets.artifact)
+            let sessionGenerationMilliseconds = packetDurationSeconds(sessionStart.duration(to: clock.now)) * 1_000
+            XCTAssertEqual(rebuiltSessions, packets.sessions)
             var filterMilliseconds: [Double] = []
             var selectionMilliseconds: [Double] = []
+            var sessionQueryMilliseconds: [Double] = []
             for index in 0..<20 {
                 let search = ["127.0.0.1", "UDP", "53535", "absent-name"][index % 4]
                 let query = PacketRecordQuery(text: search, transport: .udp, protocolKind: .udp, interfaceName: nil, processID: nil, direction: nil, recordIDs: nil)
@@ -93,13 +98,39 @@ final class PacketPerformanceTests: XCTestCase {
                 let selected = try pagePacketRecords(result: packets, query: focused, page: PacketPageRequest(offset: 0, limit: 1))
                 selectionMilliseconds.append(packetDurationSeconds(selectionStart.duration(to: clock.now)) * 1_000)
                 XCTAssertEqual(selected.records.first?.id, chosen.id)
+                let sessionQueryStart = clock.now
+                let sessionPage = try pagePacketSessions(result: packets, query: query, names: [:], page: PacketPageRequest(offset: 0, limit: 100))
+                sessionQueryMilliseconds.append(packetDurationSeconds(sessionQueryStart.duration(to: clock.now)) * 1_000)
+                XCTAssertEqual(sessionPage.matchingCount, search == "absent-name" ? 0 : 1)
+                XCTAssertEqual(sessionPage.sessions.first?.packetCount, search == "absent-name" ? nil : count)
             }
             let filterP95 = packetPercentile95(filterMilliseconds)
             let selectionP95 = packetPercentile95(selectionMilliseconds)
+            let sessionQueryP95 = packetPercentile95(sessionQueryMilliseconds)
+            var originalInspections: [PacketOriginalInspectionObservation] = []
+            for recordIndex in [0, count / 2, count - 1] {
+                let packet = packets.records[recordIndex]
+                let inspectionStart = clock.now
+                let evidence = try await inspectOriginalPacket(
+                    packet: packet, artifact: packets.artifact,
+                    fields: [.ipv4Source, .ipv4Destination, .udpSourcePort, .udpDestinationPort, .frameTimeEpoch],
+                    tsharkURL: tshark, decoder: BoundedDecoder(), limits: .standard
+                )
+                let milliseconds = packetDurationSeconds(inspectionStart.duration(to: clock.now)) * 1_000
+                XCTAssertEqual(evidence.packetID, packet.id)
+                XCTAssertEqual(evidence.bytes, generatedLoopbackUDPPacket())
+                XCTAssertTrue(evidence.unmappedFields.contains(.frameTimeEpoch))
+                XCTAssertEqual(try sha256(url: capture), digest)
+                originalInspections.append(PacketOriginalInspectionObservation(
+                    frameNumber: packet.id.frameNumber, elapsedMilliseconds: milliseconds
+                ))
+            }
             var usage = rusage()
             guard getrusage(RUSAGE_SELF, &usage) == 0 else { throw PacketFixtureError.resourceUsageFailed(code: errno) }
             let observation = PacketPerformanceObservation(packetCount: count, decodeSeconds: decodeSeconds,
                 filterP95Milliseconds: filterP95, selectionP95Milliseconds: selectionP95,
+                sessionGenerationMilliseconds: sessionGenerationMilliseconds, sessionQueryP95Milliseconds: sessionQueryP95,
+                originalInspections: originalInspections,
                 processMaximumResidentBytes: Int64(usage.ru_maxrss), estimatedPacketBytes: packets.coverage.estimatedBytes,
                 tsharkVersion: result.coverage.tsharkVersion, operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString)
             let encoded = try JSONEncoder().encode(observation)
@@ -110,6 +141,7 @@ final class PacketPerformanceTests: XCTestCase {
             print(String(decoding: encoded, as: UTF8.self))
             XCTAssertLessThanOrEqual(filterP95, 300, "Generated-input filter p95 exceeded the proposed 300 ms target.")
             XCTAssertLessThanOrEqual(selectionP95, 300, "Generated-input selection p95 exceeded the proposed 300 ms target.")
+            XCTAssertLessThanOrEqual(sessionQueryP95, 300, "Generated-input session query p95 exceeded the proposed 300 ms target.")
             try FileManager.default.removeItem(at: capture)
         }
     }
@@ -150,10 +182,18 @@ private struct PacketPerformanceObservation: Encodable {
     let decodeSeconds: Double
     let filterP95Milliseconds: Double
     let selectionP95Milliseconds: Double
+    let sessionGenerationMilliseconds: Double
+    let sessionQueryP95Milliseconds: Double
+    let originalInspections: [PacketOriginalInspectionObservation]
     let processMaximumResidentBytes: Int64
     let estimatedPacketBytes: Int
     let tsharkVersion: String
     let operatingSystem: String
+}
+
+private struct PacketOriginalInspectionObservation: Encodable {
+    let frameNumber: UInt64
+    let elapsedMilliseconds: Double
 }
 
 private func analyzePerformanceCapture(analyzer: TSharkAnalyzer, captureURL: URL, deadline: Duration) async throws -> NativeAnalysisResult {

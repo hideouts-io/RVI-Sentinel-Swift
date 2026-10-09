@@ -209,22 +209,30 @@ struct BoundedDecoderTests {
         let unrelated = Process()
         unrelated.executableURL = URL(fileURLWithPath: "/bin/sleep")
         unrelated.arguments = ["20"]
+        let terminationEvents = processTerminationEvents(unrelated)
         try unrelated.run()
-        defer {
-            if unrelated.isRunning { unrelated.terminate() }
-            unrelated.waitUntilExit()
+        defer { unrelated.terminationHandler = nil }
+        let verification: Task<Void, Error> = Task {
+            let line = try await recorder.waitForFirstLine()
+            let pid = try #require(Int32(line))
+            await decoder.cancel()
+            do {
+                _ = try await operation.value
+                Issue.record("Explicit cancellation was reported as success.")
+            } catch is CancellationError {
+                #expect(Darwin.kill(pid, 0) == -1)
+                #expect(errno == ESRCH)
+                #expect(unrelated.isRunning)
+            }
         }
-        let line = try await recorder.waitForFirstLine()
-        let pid = try #require(Int32(line))
-        await decoder.cancel()
+        let verificationResult = await verification.result
+        if unrelated.isRunning { unrelated.terminate() }
         do {
-            _ = try await operation.value
-            Issue.record("Explicit cancellation was reported as success.")
-        } catch is CancellationError {
-            #expect(Darwin.kill(pid, 0) == -1)
-            #expect(errno == ESRCH)
-            #expect(unrelated.isRunning)
+            _ = try await firstProcessTermination(from: terminationEvents, executable: "/bin/sleep")
+        } catch {
+            Issue.record(error)
         }
+        try verificationResult.get()
     }
 }
 

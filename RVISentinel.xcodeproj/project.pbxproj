@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		004B0A0BD2E818931556EDD1 /* BaselineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DEB03A195ACB6418E32EB38 /* BaselineView.swift */; };
 		050374627FEFB8B20ECF57F3 /* PacketIntegrationFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910F542B89AB157FF4FFDF96 /* PacketIntegrationFixture.swift */; };
+		053BCFA2AD482B77380749E1 /* CurrentDNSLookupIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 051BCFA2AD482B77380749E1 /* CurrentDNSLookupIntegrationTests.swift */; };
+		053BCFA2AD482B77380749E2 /* CurrentDNSLoopbackResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 051BCFA2AD482B77380749E2 /* CurrentDNSLoopbackResolver.swift */; };
 		07ABF1AF0BD78CB13AAC938A /* PhysicalWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1E6A15212E652B402FC199D /* PhysicalWorkflowTests.swift */; };
 		0AEF17C85BF94E6FBB260B3A /* AnalyzerPacketIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABB4452EBE4B154DC78741F0 /* AnalyzerPacketIntegrationTests.swift */; };
 		0BCBFEBCF9675E97BE0C29A2 /* PacketInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB7F8326A08118E55CDC0B0 /* PacketInspectorView.swift */; };
@@ -82,6 +84,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		051BCFA2AD482B77380749E1 /* CurrentDNSLookupIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentDNSLookupIntegrationTests.swift; sourceTree = "<group>"; };
+		051BCFA2AD482B77380749E2 /* CurrentDNSLoopbackResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentDNSLoopbackResolver.swift; sourceTree = "<group>"; };
 		09A6684D4C368C2786CAB49A /* PacketEvidenceIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketEvidenceIntegrationTests.swift; sourceTree = "<group>"; };
 		0D88C34D632EE2DF822D77EE /* SetupChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupChecker.swift; sourceTree = "<group>"; };
 		0F451F85629879697F760AD2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -242,6 +246,8 @@
 				43766FF711503F358A1041EE /* BoundedDecoderTests.swift */,
 				28CB418EB7C6E349E31E4461 /* CaptureCoordinatorTests.swift */,
 				2A09B7DB105E6EECA8B38FB6 /* CaptureEvidenceHashTests.swift */,
+				051BCFA2AD482B77380749E1 /* CurrentDNSLookupIntegrationTests.swift */,
+				051BCFA2AD482B77380749E2 /* CurrentDNSLoopbackResolver.swift */,
 				3DEDBF14408432BC9F12974C /* DeviceDiscoveryTests.swift */,
 				EB1EFE7B80C645D47E1761D4 /* DiagnosticsTests.swift */,
 				B940C2559CBC8D7D61E459A7 /* EvidenceModelTests.swift */,
@@ -414,6 +420,8 @@
 				331AE979BF23D35F41459A25 /* BoundedDecoderTests.swift in Sources */,
 				5B611AA566E72D3315C09FA6 /* CaptureCoordinatorTests.swift in Sources */,
 				B1AC8457F3495F7FAF7433A5 /* CaptureEvidenceHashTests.swift in Sources */,
+				053BCFA2AD482B77380749E1 /* CurrentDNSLookupIntegrationTests.swift in Sources */,
+				053BCFA2AD482B77380749E2 /* CurrentDNSLoopbackResolver.swift in Sources */,
 				9611D3EA8A2AD7CC4D35571A /* DeviceDiscoveryTests.swift in Sources */,
 				466687B6A7E5C25257B754B8 /* DiagnosticsTests.swift in Sources */,
 				0EDE72EF8354DB0D96FD7CF0 /* EvidenceModelTests.swift in Sources */,

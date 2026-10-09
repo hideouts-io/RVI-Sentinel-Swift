@@ -77,7 +77,7 @@ struct PacketCurrentLookupView: View {
         operationTask = Task {
             do {
                 let result = try await lookupCurrentPTR(
-                    address: address.rawValue, packetID: selectedID, decoder: ownedDecoder,
+                    address: address.rawValue, packetID: selectedID, resolver: .systemConfigured, decoder: ownedDecoder,
                     timeout: .seconds(5), maximumOutputBytes: 32_768
                 )
                 try Task.checkCancellation()
