@@ -15,3 +15,4 @@
 - Emit native CI on every PR to main; do not add workflow-level path filters to a required check.
 - Follow README.md for opt-in physical-workflow tests. Ordinary CI does not verify live capture, privileged operations, or a physical device.
 - Keep capture evidence private and state remaining runtime validation gaps in review and release claims.
+- Preserve Swift and Actions scanning in .github/workflows/codeql.yml. Require successful read-only analysis, separate upload jobs, and Code scanning uploads for the candidate revision.
