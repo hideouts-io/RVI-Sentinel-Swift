@@ -602,6 +602,7 @@ func sha256(url: URL) throws -> String {
     defer { try? handle.close() }
     var hasher = SHA256()
     while true {
+        try Task.checkCancellation()
         let data = try handle.read(upToCount: 1_048_576) ?? Data()
         if data.isEmpty { break }
         hasher.update(data: data)

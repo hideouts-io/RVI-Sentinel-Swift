@@ -107,7 +107,9 @@ Diagnostics are generated locally and deliberately exclude packet data, addresse
 - Validates the saved format, readable packet content, packet count, file size, packet-span duration, and SHA-256 hash.
 - Shows an explicit completion card with **Analyze**, **Open File Location**, and **Capture Again** actions.
 - Analyzes IPv4/IPv6 endpoints, hostnames, protocols, detailed fields, TCP/UDP ports, packet counts, byte counts, timing, and decoder coverage.
-- Performs IPv4 and IPv6 hostname resolution and labels actively resolved names as post-capture enrichment.
+- Browses a searchable packet timeline, scoped TCP/UDP sessions, and recorded process/PID/interface/direction metadata when present.
+- Keeps analysis passive and offers explicit current IPv4/IPv6 PTR lookup separately from captured hostname evidence.
+- Inspects original packet bytes on demand after verifying the source SHA-256.
 - Shows capture-reported iOS interface labels while excluding the temporary Mac-side `rvi` interface.
 - Keeps baseline comparison read-only until **Add Findings to Baseline** is chosen.
 - Creates timestamped backups before baseline update or reset.
@@ -236,13 +238,14 @@ The temporary RVI is cleaned up after success, cancellation, or failure. If the 
 
 ## Analyze an Existing Capture
 
-Open **Analysis**, choose an authorized `.pcap`, `.pcapng`, or `.cap` file, and select **Analyze Capture**. The source file is read-only: analysis does not rewrite the capture or silently update a baseline.
+Open **Analysis**, choose an authorized `.pcap`, `.pcapng`, or `.cap` file, and select **Analyze Locally**. The source file is read-only: analysis does not rewrite the capture or silently update a baseline.
 
 The result workspace contains:
 
 - **Summary:** packet and byte totals, timestamps, capture SHA-256, decoder version, interface metadata, and active-resolution state.
 - **Endpoints:** IPv4/IPv6 addresses, scope classification, source/destination observations, traffic totals, protocols, ports, process-attribution boundary, resolved names, and name provenance.
-- **Hostnames:** captured and actively resolved names with related address, first/last observation, confidence, and evidence source.
+- **Hostnames:** captured names with related address where established, first/last observation, confidence, and evidence source.
+- **Packets & Sessions:** a chronological, paged timeline with process/PID, endpoint, hostname, protocol, interface, and direction search/filtering; scoped TCP/UDP sessions; selected-packet metadata and verified original bytes. Every session member is available on its focused timeline.
 - **Protocols:** packet and byte counts by identified protocol.
 - **Protocol Details:** typed TShark field values, occurrence counts, and evidence boundaries.
 - **Ports:** TCP/UDP observations with conventional service labels and an explicit reminder that a port does not prove an application or process.
@@ -288,11 +291,17 @@ The native analyzer currently creates separate hostname-evidence records for:
 - HTTP Host, HTTP/2 authority, or HTTP/3 authority;
 - certificate DNS subject alternative names;
 - TLS SNI carried by a captured QUIC handshake;
-- active IPv4/IPv6 reverse resolution.
+- current IPv4/IPv6 PTR results only after a selected-packet lookup action, displayed separately in the inspector.
 
 These labels come from decoded capture fields, not from ports or vendor guesses. Certificate subjects without a DNS SAN are not promoted to hostnames, and a QUIC classification by itself does not create hostname evidence.
 
-Active resolution is always enabled during analysis through TShark. Observed IP addresses may therefore be sent to the Mac's configured resolver. Names returned by that lookup are marked **Active reverse lookup**, **Low confidence**, and **Post-capture enrichment** so they are never confused with names directly present in the capture.
+Analysis runs TShark with `-n` and makes no active hostname lookup. In the packet inspector, **Look Up Source** or **Look Up Destination** explicitly sends that selected address to the Mac's configured resolver. Results show request/completion times, status, returned records, and TTL separately from captured evidence. They do not overwrite historical names or enter existing reports/baselines.
+
+Structured captured DNS records preserve owner/type/value/TTL/frame relationships. A DNS question alone does not establish an address association. Later DNS links require the same source artifact and receiver/interface context, valid TTL intervals, and no invalidating response. Stream name propagation is labeled inferred; certificate names and request-role-ambiguous authorities remain unpaired.
+
+Recorded process and effective-process labels are capture metadata, not independently verified device identity. Imported origin starts unknown; a user declaration of RVI is distinct from Sentinel's completed-device workflow. Missing labels, PID 0, unsupported decoder fields, and conflicting metadata remain explicit. Decoded epoch values retain nanosecond precision without a floating-point conversion; printed fractional digits do not establish the container's declared timestamp resolution. Local display does not adjust capture time.
+
+Analysis supports up to 200,000 records and 256 MiB of estimated record storage, with a 4 GiB original-file hashing ceiling and explicit decoder/output/deadline limits. These are failure ceilings, not a claim of tested capacity. Generated 50,000/100,000-packet performance and physical/native validation are tracked in [TODO.md](TODO.md). The original file is read in place and checked before/after analysis; moving or changing it requires reimport. Existing report schema and baseline contracts remain unchanged, without packet payload export.
 
 A missing PTR record means only that the resolver returned no reverse name. A returned PTR name can be generic, shared, stale, or controlled by a provider; it is an attribution hint, not proof of ownership or intent.
 
@@ -443,7 +452,7 @@ RVI-Sentinel-Swift/
 
 Packet captures can reveal sensitive metadata even when payloads are encrypted. The repository ignores packet-capture formats, local GeoIP databases, logs, and files placed in its `captures/`, `baselines/`, and `exports/` directories. Endpoint inventories, hostnames, device identifiers, baselines, reports, and any other sensitive artifacts stored elsewhere are not automatically protected and must never be committed or published in issues or pull requests.
 
-RVI-Sentinel does not upload captures or reports. All capture, analysis, baselining, export, and diagnostic generation is local. The important exception is active hostname resolution: observed IPv4 and IPv6 addresses may be sent to the Mac's configured DNS resolver during analysis.
+RVI-Sentinel does not upload captures or reports. All capture, analysis, baselining, export, and diagnostic generation is local. A user-initiated current PTR lookup sends the selected IP address to the Mac's configured DNS resolver; ordinary capture analysis does not query it.
 
 Use RVI-Sentinel only with devices, networks, and packet captures you own or are explicitly authorized to inspect.
 

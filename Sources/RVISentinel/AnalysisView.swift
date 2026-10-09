@@ -32,6 +32,17 @@ struct AnalysisView: View {
                     .accessibilityHint(startAnalysisHint)
                     .accessibilityIdentifier(AccessibilityIdentifier.startAnalysis.rawValue)
             }
+            if appState.importedCaptureSource != .liveDeviceRVI {
+                Picker("Import origin", selection: $appState.importedCaptureSource) {
+                    Text("Unknown origin").tag(PacketSourceProvenance.unknown)
+                    Text("I identify this as device RVI").tag(PacketSourceProvenance.userDeclaredRVI)
+                }.disabled(appState.isAnalyzing || appState.analysisResult != nil)
+                    .accessibilityIdentifier("analysis.capture.origin")
+            }
+            if let integrity = appState.analysisIntegrity {
+                Text(integrityLabel(integrity)).font(.caption).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("analysis.capture.integrity")
+            }
             AnalysisProgressView(progress: appState.analysisProgress, isAnalyzing: appState.isAnalyzing)
             if let result = appState.analysisResult {
                 Picker("Result", selection: $selectedResultTab) {
@@ -41,7 +52,7 @@ struct AnalysisView: View {
                 .accessibilityIdentifier(AccessibilityIdentifier.analysisResultPicker.rawValue)
                 resultView(result: result)
             } else {
-                ContentUnavailableView("No analysis results", systemImage: "doc.text.magnifyingglass", description: Text("Choose an authorized capture. IPv4 and IPv6 hostname resolution runs automatically during analysis."))
+                ContentUnavailableView("No analysis results", systemImage: "doc.text.magnifyingglass", description: Text("Choose an authorized capture. Analysis uses recorded metadata and captured hostname evidence. Current reverse DNS is a separate action."))
             }
         }
         .padding(28)
@@ -55,7 +66,7 @@ struct AnalysisView: View {
         if appState.analysisCaptureURL == nil {
             return "Choose an authorized packet capture before analyzing."
         }
-        return "Decodes the selected capture locally with IPv4 and IPv6 hostname resolution enabled."
+        return "Decodes the selected capture locally without active hostname lookups."
     }
 
     @ViewBuilder
@@ -67,6 +78,12 @@ struct AnalysisView: View {
         case .protocols: ProtocolResultsView(protocols: result.protocols)
         case .details: ProtocolDetailResultsView(details: result.protocolDetails)
         case .ports: PortResultsView(ports: result.ports)
+        case .packets:
+            if let packets = result.packetAnalysis {
+                PacketBrowserView(result: packets, supportedFields: Set(result.coverage.supportedFields), interfaceNames: result.summary.interfaces, names: result.capturedHostnameAssociations ?? [:]).id(packets.artifact.id)
+            } else {
+                ContentUnavailableView("No retained packets", systemImage: "list.bullet.rectangle", description: Text("Reanalyze this capture to populate its timeline and sessions."))
+            }
         case .coverage: CoverageView(coverage: result.coverage)
         }
     }
@@ -74,6 +91,7 @@ struct AnalysisView: View {
 
 private enum ResultTab: String, CaseIterable, Identifiable {
     case summary = "Summary"
+    case packets = "Packets & Sessions"
     case endpoints = "Endpoints"
     case hostnames = "Hostnames"
     case protocols = "Protocols"
@@ -277,5 +295,13 @@ struct CoverageView: View {
                 }
             }
         }
+    }
+}
+
+private func integrityLabel(_ state: PacketIntegrityState) -> String {
+    switch state {
+    case .pending: "SHA-256 verification pending"
+    case .verified: "Original capture SHA-256 verified before and after analysis"
+    case let .failed(detail): "Capture verification incomplete: \(detail)"
     }
 }

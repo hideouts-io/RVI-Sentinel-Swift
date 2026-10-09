@@ -165,6 +165,7 @@ struct WorkflowCard: View {
             .background(.background.secondary, in: RoundedRectangle(cornerRadius: 14))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("workflow.step.\(number)")
     }
 }
 
