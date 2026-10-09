@@ -2,35 +2,28 @@ name: Native macOS
 
 on:
   pull_request:
-    paths:
-      - "Sources/**"
-      - "Resources/**"
-      - "Tests/**"
-      - "project.yml"
-      - "RVISentinel.xcodeproj/**"
-      - ".github/workflows/native-macos.yml"
+    branches: [main]
   push:
     branches: [main]
-    paths:
-      - "Sources/**"
-      - "Resources/**"
-      - "Tests/**"
-      - "project.yml"
-      - "RVISentinel.xcodeproj/**"
-      - ".github/workflows/native-macos.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   build-and-test:
+    name: Native build and tests
+    timeout-minutes: 30
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
-      - name: Install TShark for packet evidence integration tests
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install packet analysis CLI
+        timeout-minutes: 10
         run: |
-          brew install wireshark
-          test -x /opt/homebrew/bin/tshark
+          brew install --formula wireshark
+          tshark --version
       - name: Build and test native app
         run: >-
           xcodebuild
