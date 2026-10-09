@@ -35,7 +35,9 @@ jobs:
         run: >-
           xcodebuild -project RVISentinel.xcodeproj -scheme RVISentinel
           -configuration Debug -derivedDataPath "$RUNNER_TEMP/codeql-build"
-          CODE_SIGNING_ALLOWED=NO build
+          CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+          COMPILATION_CACHE_ENABLE_CACHING=NO SWIFT_ENABLE_COMPILE_CACHE=NO
+          SWIFT_USE_INTEGRATED_DRIVER=NO build
       - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
         with:
           upload: never
