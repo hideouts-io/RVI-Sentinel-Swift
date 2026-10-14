@@ -179,13 +179,14 @@ final class PacketAnalysisTests: XCTestCase {
         XCTAssertEqual(catalog, ["frame.number", "dns.qry.name"])
     }
 
-    func testTSharkArgumentsEnableIPv4AndIPv6ResolutionAndPreserveFieldOrder() {
+    func testTSharkArgumentsArePassiveAndPreserveFieldOrder() {
         let arguments = tsharkArguments(
             captureURL: URL(fileURLWithPath: "/tmp/authorized.pcapng"),
             fields: [.frameNumber, .dnsQueryName]
         )
 
-        XCTAssertEqual(Array(arguments.prefix(2)), ["-N", "nN"])
+        XCTAssertEqual(Array(arguments.prefix(2)), ["-n", "-r"])
+        XCTAssertFalse(arguments.contains("-N"))
         XCTAssertEqual(Array(arguments.suffix(4)), ["-e", "frame.number", "-e", "dns.qry.name"])
     }
 
@@ -233,7 +234,7 @@ final class PacketAnalysisTests: XCTestCase {
             try FileManager.default.removeItem(at: captureURL)
         }
 
-        let result = try await TSharkAnalyzer(processRunner: ProcessRunner()).analyze(
+        let result = try await TSharkAnalyzer(decoder: BoundedDecoder()).analyze(
             captureURL: captureURL,
             progress: { _ in }
         )
@@ -241,7 +242,7 @@ final class PacketAnalysisTests: XCTestCase {
         XCTAssertEqual(result.summary.packetCount, 1)
         XCTAssertEqual(Set(result.endpoints.map(\.address)), ["127.0.0.1"])
         XCTAssertNotNil(result.protocols.first { $0.protocolKind == .udp })
-        XCTAssertTrue(result.coverage.activeResolutionEnabled)
+        XCTAssertFalse(result.coverage.activeResolutionEnabled)
     }
 
     func testRealTSharkRejectsCorruptCaptureWithDecoderDetail() async throws {
@@ -256,16 +257,17 @@ final class PacketAnalysisTests: XCTestCase {
         }
 
         do {
-            _ = try await TSharkAnalyzer(processRunner: ProcessRunner()).analyze(
+            _ = try await TSharkAnalyzer(decoder: BoundedDecoder()).analyze(
                 captureURL: captureURL,
                 progress: { _ in }
             )
             XCTFail("Corrupt capture analysis unexpectedly succeeded.")
-        } catch let error as NativeAnalysisError {
-            guard case let .decodingFailed(detail) = error else {
+        } catch let error as BoundedDecoderError {
+            guard case let .nonzeroExit(_, status, _, detail) = error else {
                 return XCTFail("Expected a decoding failure, received: \(error.localizedDescription)")
             }
-            XCTAssertTrue(detail.contains("tshark exit"))
+            XCTAssertNotEqual(status, 0)
+            XCTAssertTrue(detail.localizedCaseInsensitiveContains("capture file"))
             XCTAssertTrue(detail.localizedCaseInsensitiveContains("capture file"))
         }
     }

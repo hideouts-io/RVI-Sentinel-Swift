@@ -218,6 +218,7 @@ struct CaptureCompletionView: View {
                         openAnalysis()
                     }
                     .buttonStyle(.borderedProminent)
+                    .disabled(appState.isAnalyzing)
                     .accessibilityIdentifier(AccessibilityIdentifier.analyzeCompletedCapture.rawValue)
                     Button("Open File Location") { appState.revealCapture() }
                         .accessibilityIdentifier(AccessibilityIdentifier.revealCompletedCapture.rawValue)

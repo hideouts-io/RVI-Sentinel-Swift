@@ -58,8 +58,20 @@ enum TSharkField: String, CaseIterable, Codable, Sendable {
     case frameNumber = "frame.number"
     case frameTimeEpoch = "frame.time_epoch"
     case frameLength = "frame.len"
+    case frameCapturedLength = "frame.cap_len"
     case frameProtocols = "frame.protocols"
     case frameInterfaceName = "frame.interface_name"
+    case darwinProcessID = "frame.darwin.process_info.pid"
+    case darwinProcessName = "frame.darwin.process_info.pname"
+    case darwinEffectiveProcessID = "frame.darwin.process_info.epid"
+    case darwinEffectiveProcessName = "frame.darwin.process_info.epname"
+    case framePacketDirection = "frame.packet_flags_direction"
+    case pktapInterfaceName = "pktap.ifname"
+    case pktapProcessID = "pktap.pid"
+    case pktapProcessName = "pktap.cmdname"
+    case pktapEffectiveProcessID = "pktap.epid"
+    case pktapEffectiveProcessName = "pktap.ecmdname"
+    case pktapFlags = "pktap.flags"
     case ethernetSource = "eth.src"
     case ethernetDestination = "eth.dst"
     case ethernetType = "eth.type"
@@ -95,6 +107,8 @@ enum TSharkField: String, CaseIterable, Codable, Sendable {
     case tcpFlags = "tcp.flags"
     case tcpSequence = "tcp.seq"
     case tcpAcknowledgment = "tcp.ack"
+    case tcpSequenceRaw = "tcp.seq_raw"
+    case tcpAcknowledgmentRaw = "tcp.ack_raw"
     case tcpPayloadLength = "tcp.len"
     case tcpWindowSize = "tcp.window_size_value"
     case tcpReset = "tcp.flags.reset"
@@ -259,6 +273,29 @@ struct NativeAnalysisResult: Codable, Equatable, Sendable {
     let protocolDetails: [ProtocolDetailObservation]
     let ports: [PortObservation]
     let coverage: AnalysisCoverage
+    let packetAnalysis: PacketAnalysisResult?
+    let capturedHostnameAssociations: [PacketRecordID: [CapturedHostnameAssociation]]?
+
+    init(summary: AnalysisSummary, endpoints: [EndpointObservation], hostnames: [HostnameEvidence], protocols: [ProtocolObservation], protocolDetails: [ProtocolDetailObservation], ports: [PortObservation], coverage: AnalysisCoverage, packetAnalysis: PacketAnalysisResult?, capturedHostnameAssociations: [PacketRecordID: [CapturedHostnameAssociation]]?) {
+        self.summary = summary
+        self.endpoints = endpoints
+        self.hostnames = hostnames
+        self.protocols = protocols
+        self.protocolDetails = protocolDetails
+        self.ports = ports
+        self.coverage = coverage
+        self.packetAnalysis = packetAnalysis
+        self.capturedHostnameAssociations = capturedHostnameAssociations
+    }
+
+    init(summary: AnalysisSummary, endpoints: [EndpointObservation], hostnames: [HostnameEvidence], protocols: [ProtocolObservation], protocolDetails: [ProtocolDetailObservation], ports: [PortObservation], coverage: AnalysisCoverage, packetAnalysis: PacketAnalysisResult?) {
+        self.init(summary: summary, endpoints: endpoints, hostnames: hostnames, protocols: protocols, protocolDetails: protocolDetails, ports: ports, coverage: coverage, packetAnalysis: packetAnalysis, capturedHostnameAssociations: nil)
+    }
+
+    /// Aggregate-only callers and older encoded results remain compatible.
+    init(summary: AnalysisSummary, endpoints: [EndpointObservation], hostnames: [HostnameEvidence], protocols: [ProtocolObservation], protocolDetails: [ProtocolDetailObservation], ports: [PortObservation], coverage: AnalysisCoverage) {
+        self.init(summary: summary, endpoints: endpoints, hostnames: hostnames, protocols: protocols, protocolDetails: protocolDetails, ports: ports, coverage: coverage, packetAnalysis: nil, capturedHostnameAssociations: nil)
+    }
 }
 
 struct AnalysisProgress: Equatable, Sendable {

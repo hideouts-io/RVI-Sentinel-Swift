@@ -13,14 +13,14 @@ final class PhysicalWorkflowTests: XCTestCase {
             try FileManager.default.removeItem(at: workingDirectory)
         }
 
-        let analyzer = TSharkAnalyzer(processRunner: ProcessRunner())
+        let analyzer = TSharkAnalyzer(decoder: BoundedDecoder())
         let result = try await analyzer.analyze(captureURL: captureURL) { _ in }
 
         XCTAssertGreaterThan(result.summary.packetCount, 0)
         XCTAssertFalse(result.endpoints.isEmpty)
         XCTAssertFalse(result.protocols.isEmpty)
         XCTAssertFalse(result.summary.captureSHA256.isEmpty)
-        XCTAssertTrue(result.coverage.activeResolutionEnabled)
+        XCTAssertFalse(result.coverage.activeResolutionEnabled)
         let observedIOSInterfaces: [NetworkInterfaceInfo] = captureReportedIOSInterfaces(names: result.summary.interfaces)
         XCTAssertFalse(observedIOSInterfaces.isEmpty)
         XCTAssertTrue(observedIOSInterfaces.allSatisfy { $0.owner == .ios && $0.isUp })
