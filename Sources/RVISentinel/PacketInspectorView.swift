@@ -30,12 +30,14 @@ struct PacketInspectorView: View {
                             .font(.caption).foregroundStyle(.secondary)
                         PacketCurrentLookupView(
                             packetID: packet.id, address: packet.sourceAddress, title: "Source",
-                            lookupIdentifier: "analysis.packet.lookup-source", cancelIdentifier: "analysis.packet.cancel-lookup-source"
+                            lookupIdentifier: "analysis.packet.lookup-source", cancelIdentifier: "analysis.packet.cancel-lookup-source",
+                            resolver: .systemConfigured
                         )
                         Divider()
                         PacketCurrentLookupView(
                             packetID: packet.id, address: packet.destinationAddress, title: "Destination",
-                            lookupIdentifier: "analysis.packet.lookup-destination", cancelIdentifier: "analysis.packet.cancel-lookup-destination"
+                            lookupIdentifier: "analysis.packet.lookup-destination", cancelIdentifier: "analysis.packet.cancel-lookup-destination",
+                            resolver: .systemConfigured
                         )
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }

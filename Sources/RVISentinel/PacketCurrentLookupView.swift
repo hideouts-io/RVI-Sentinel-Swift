@@ -14,6 +14,7 @@ struct PacketCurrentLookupView: View {
     let title: String
     let lookupIdentifier: String
     let cancelIdentifier: String
+    let resolver: CurrentPTRResolver
     @State private var state = PacketLookupDisplayState.idle
     @State private var operationID: UUID?
     @State private var operationTask: Task<Void, Never>?
@@ -49,19 +50,22 @@ struct PacketCurrentLookupView: View {
                 .accessibilityIdentifier("\(lookupIdentifier).loading")
         case let .cancelled(requestedAt):
             Text("Current lookup requested \(requestTime(requestedAt)) was cancelled.").font(.caption)
+                .accessibilityIdentifier("\(lookupIdentifier).cancelled")
         case let .failed(requestedAt, detail):
             Text("Current lookup requested \(requestTime(requestedAt)) failed: \(detail)")
                 .foregroundStyle(.red).textSelection(.enabled).accessibilityIdentifier("\(lookupIdentifier).error")
         case let .completed(result):
             VStack(alignment: .leading, spacing: 5) {
                 Text("Present-day enrichment · \(result.provenance.rawValue)").font(.caption).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("\(lookupIdentifier).provenance")
                 Text("Requested: \(requestTime(result.requestedAt)) · Completed: \(requestTime(result.completedAt))").font(.caption)
+                    .accessibilityIdentifier("\(lookupIdentifier).times")
                 Text("Result: \(lookupStatus(result.status))").accessibilityIdentifier("\(lookupIdentifier).status")
                 ForEach(Array(result.answers.enumerated()), id: \.offset) { _, answer in
                     Text("\(answer.owner) · \(answer.recordType.rawValue) · \(answer.value) · TTL \(answer.ttlSeconds) s")
                         .font(.caption.monospaced()).textSelection(.enabled)
                 }
-            }.accessibilityIdentifier("\(lookupIdentifier).result")
+            }
         }
     }
 
@@ -77,7 +81,7 @@ struct PacketCurrentLookupView: View {
         operationTask = Task {
             do {
                 let result = try await lookupCurrentPTR(
-                    address: address.rawValue, packetID: selectedID, resolver: .systemConfigured, decoder: ownedDecoder,
+                    address: address.rawValue, packetID: selectedID, resolver: resolver, decoder: ownedDecoder,
                     timeout: .seconds(5), maximumOutputBytes: 32_768
                 )
                 try Task.checkCancellation()
@@ -107,7 +111,7 @@ struct PacketCurrentLookupView: View {
     }
 
     private func requestTime(_ date: Date) -> String {
-        date.formatted(date: .numeric, time: .standard)
+        date.ISO8601Format(.init(includingFractionalSeconds: true))
     }
 
     private func lookupStatus(_ status: CurrentPTRStatus) -> String {

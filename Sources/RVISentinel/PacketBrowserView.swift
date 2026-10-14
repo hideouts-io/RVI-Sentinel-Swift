@@ -90,7 +90,6 @@ struct PacketBrowserView: View {
             Text("\(result.coverage.ungroupedPackets.formatted()) packets remain outside sessions. Recorded process labels describe capture metadata.")
                 .font(.caption).foregroundStyle(.secondary)
         }
-        .accessibilityIdentifier("analysis.packet.browser")
         .task(id: request.id) { await load(request) }
         .onChange(of: search) { _, _ in offset = 0 }
         .onChange(of: protocolKind) { _, _ in offset = 0 }

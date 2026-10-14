@@ -19,6 +19,8 @@ struct PacketRawBytesView: View {
     @State private var cleanupTask: Task<Void, Never>?
     @State private var byteOffset = 0
     @State private var selectedRange: OriginalPacketByteRange?
+    @State private var verifiedRangesExpanded = false
+    @State private var unmappedFieldsExpanded = false
 
     var body: some View {
         GroupBox("Original packet bytes") {
@@ -40,6 +42,8 @@ struct PacketRawBytesView: View {
             state = .idle
             byteOffset = 0
             selectedRange = nil
+            verifiedRangesExpanded = false
+            unmappedFieldsExpanded = false
         }
         .onDisappear { cancelInspection() }
     }
@@ -55,6 +59,7 @@ struct PacketRawBytesView: View {
                 .accessibilityIdentifier("analysis.packet.bytes.loading")
         case .cancelled:
             Text("Original packet inspection was cancelled.").font(.caption)
+                .accessibilityIdentifier("analysis.packet.bytes.cancelled")
         case let .failed(detail):
             Text(detail).foregroundStyle(.red).textSelection(.enabled)
                 .accessibilityIdentifier("analysis.packet.bytes.error")
@@ -69,6 +74,7 @@ struct PacketRawBytesView: View {
                 .font(.caption).accessibilityIdentifier("analysis.packet.bytes.verified")
             HStack {
                 Text("Offsets \(byteOffset)…\(min(byteOffset + 512, evidence.bytes.count)) of \(evidence.bytes.count) (end exclusive)").font(.caption.monospaced())
+                    .accessibilityIdentifier("analysis.packet.bytes.offsets")
                 Spacer()
                 Button("Previous Bytes") { byteOffset = max(0, byteOffset - 512) }
                     .disabled(byteOffset == 0).accessibilityIdentifier("analysis.packet.bytes.previous")
@@ -79,12 +85,19 @@ struct PacketRawBytesView: View {
                 Text(packetHexWindow(bytes: evidence.bytes, offset: byteOffset, maximumBytes: 512))
                     .font(.caption.monospaced()).textSelection(.enabled)
                     .accessibilityIdentifier("analysis.packet.bytes.window")
+                    .id(byteOffset)
             }
             if let selectedRange {
                 Text("Verified \(selectedRange.field.rawValue): offsets \(selectedRange.offset)…\(selectedRange.offset + selectedRange.length) (end exclusive)")
                     .font(.caption).textSelection(.enabled).accessibilityIdentifier("analysis.packet.bytes.selected-range")
             }
-            DisclosureGroup("Verified field ranges (\(evidence.verifiedRanges.count))") {
+            Button { verifiedRangesExpanded.toggle() } label: {
+                Label("Verified field ranges (\(evidence.verifiedRanges.count))", systemImage: verifiedRangesExpanded ? "chevron.down" : "chevron.right")
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("analysis.packet.bytes.verified-ranges")
+            .accessibilityValue(verifiedRangesExpanded ? "Expanded" : "Collapsed")
+            if verifiedRangesExpanded {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 4) {
                         ForEach(evidence.verifiedRanges) { range in
@@ -97,8 +110,15 @@ struct PacketRawBytesView: View {
                         }
                     }
                 }.frame(maxHeight: 200)
+                    .accessibilityIdentifier("analysis.packet.bytes.range-list")
             }
-            DisclosureGroup("Fields without a verified on-wire range (\(evidence.unmappedFields.count))") {
+            Button { unmappedFieldsExpanded.toggle() } label: {
+                Label("Fields without a verified on-wire range (\(evidence.unmappedFields.count))", systemImage: unmappedFieldsExpanded ? "chevron.down" : "chevron.right")
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("analysis.packet.bytes.unmapped-fields")
+            .accessibilityValue(unmappedFieldsExpanded ? "Expanded" : "Collapsed")
+            if unmappedFieldsExpanded {
                 Text(evidence.unmappedFields.map(\.rawValue).joined(separator: "\n"))
                     .font(.caption.monospaced()).textSelection(.enabled)
             }
@@ -122,6 +142,8 @@ struct PacketRawBytesView: View {
         decoder = ownedDecoder
         byteOffset = 0
         selectedRange = nil
+        verifiedRangesExpanded = false
+        unmappedFieldsExpanded = false
         state = .loading
         operationTask = Task {
             do {
