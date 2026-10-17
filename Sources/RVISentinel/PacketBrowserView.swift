@@ -42,6 +42,9 @@ struct PacketBrowserView: View {
     @State private var nextOffset: Int?
     @State private var selectedPacketID: PacketRecordID?
     @State private var selectedPacket: PacketRecord?
+    @State private var selectedCapturedNames: [CapturedHostnameAssociation] = []
+    @State private var capturedNamesPacketID: PacketRecordID?
+    @State private var loadingCapturedNames = false
     @State private var selectedSessionID: PacketSessionKey?
     @State private var selectedSession: PacketSession?
     @State private var focusedSessionID: PacketSessionKey?
@@ -79,8 +82,11 @@ struct PacketBrowserView: View {
                     paging
                 }.frame(minWidth: 420)
                 if let packet = selectedPacket, mode == .packets {
-                    PacketInspectorView(packet: packet, artifact: result.artifact, supportedFields: supportedFields, capturedNames: names[packet.id] ?? [], returnToSession: focusedIDs == nil ? nil : { returnToSession() })
-                        .id(packet.id).frame(minWidth: 330, idealWidth: 400, maxWidth: 540)
+                    VStack(alignment: .leading) {
+                        if loadingCapturedNames { ProgressView("Loading captured-name evidence…").controlSize(.small) }
+                        PacketInspectorView(packet: packet, artifact: result.artifact, supportedFields: supportedFields, capturedNames: capturedNamesPacketID == packet.id ? selectedCapturedNames : [], returnToSession: focusedIDs == nil ? nil : { returnToSession() })
+                            .id(packet.id)
+                    }.frame(minWidth: 330, idealWidth: 400, maxWidth: 540)
                 } else if let session = selectedSession, mode == .sessions {
                     PacketSessionInspectorView(session: session, origin: result.artifact.source, showPackets: { focus(session) })
                         .frame(minWidth: 300, idealWidth: 350, maxWidth: 480)
@@ -91,6 +97,7 @@ struct PacketBrowserView: View {
                 .font(.caption).foregroundStyle(.secondary)
         }
         .task(id: request.id) { await load(request) }
+        .task(id: selectedPacket?.id) { await loadSelectedNames() }
         .onChange(of: search) { _, _ in offset = 0 }
         .onChange(of: protocolKind) { _, _ in offset = 0 }
         .onChange(of: interfaceName) { _, _ in offset = 0 }
@@ -142,7 +149,7 @@ struct PacketBrowserView: View {
     private var paging: some View {
         HStack {
             if isLoading { ProgressView().controlSize(.small) }
-            Text("\(mode == .packets ? rows.count : sessions.count) shown · \(matchingCount.formatted()) matching · \(mode == .packets ? result.records.count : result.sessions.count) total")
+            Text("\(mode == .packets ? rows.count : sessions.count) shown · \(matchingCount.formatted()) matching · \(mode == .packets ? result.recordCount : result.sessionCount) total")
                 .font(.caption).accessibilityIdentifier("analysis.packet.count")
             Spacer()
             Button("Previous") { offset = max(0, offset - 100) }.disabled(offset == 0 || isLoading).accessibilityIdentifier("analysis.packet.previous")
@@ -157,7 +164,10 @@ struct PacketBrowserView: View {
         let names = names
         do {
             if request.mode == .packets {
-                let task = Task.detached(priority: .userInitiated) { try pagePacketRecords(result: data, query: request.query, names: names, page: request.page) }
+                let task = Task.detached(priority: .userInitiated) {
+                    if let session = request.id.focusedSession { return try pagePacketSessionMembers(result: data, session: session, page: request.page) }
+                    return try pagePacketRecords(result: data, query: request.query, names: names, page: request.page)
+                }
                 let page = try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
                 try Task.checkCancellation()
                 rows = page.records; matchingCount = page.matchingCount; nextOffset = page.nextOffset
@@ -174,6 +184,29 @@ struct PacketBrowserView: View {
             guard !Task.isCancelled else { return }
             self.error = error.localizedDescription
             isLoading = false
+        }
+    }
+
+    private func loadSelectedNames() async {
+        selectedCapturedNames = []
+        capturedNamesPacketID = nil
+        guard let packet = selectedPacket else { loadingCapturedNames = false; return }
+        loadingCapturedNames = true
+        let data = result
+        let names = names
+        let task = Task.detached(priority: .userInitiated) { try capturedPacketNames(result: data, packet: packet.id, names: names) }
+        do {
+            let evidence = try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
+            try Task.checkCancellation()
+            selectedCapturedNames = evidence
+            capturedNamesPacketID = packet.id
+            loadingCapturedNames = false
+        } catch is CancellationError {
+            // The next selection owns the loading state.
+        } catch {
+            guard !Task.isCancelled else { return }
+            self.error = error.localizedDescription
+            loadingCapturedNames = false
         }
     }
 
