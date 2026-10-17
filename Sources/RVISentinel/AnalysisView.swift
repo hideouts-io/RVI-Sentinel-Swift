@@ -182,21 +182,21 @@ struct AnalysisSummaryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 190))], spacing: 12) {
-                    metric("Packets", result.summary.packetCount.formatted())
-                    metric("Captured bytes", ByteCountFormatter.string(fromByteCount: result.summary.byteCount, countStyle: .file))
-                    metric("Endpoints", result.endpoints.count.formatted())
-                    metric("Hostname evidence", result.hostnames.count.formatted())
-                    metric("Protocols", result.protocols.count.formatted())
-                    metric("Interfaces in metadata", result.summary.interfaces.isEmpty ? "Not reported" : result.summary.interfaces.joined(separator: ", "))
+                    metric("Packets", result.summary.packetCount.formatted(), "analysis.summary.packets")
+                    metric("Captured bytes", ByteCountFormatter.string(fromByteCount: result.summary.byteCount, countStyle: .file), "analysis.summary.bytes")
+                    metric("Endpoints", result.endpoints.count.formatted(), "analysis.summary.endpoints")
+                    metric("Hostname evidence", result.hostnames.count.formatted(), "analysis.summary.hostnames")
+                    metric("Protocols", result.protocols.count.formatted(), "analysis.summary.protocols")
+                    metric("Interfaces in metadata", result.summary.interfaces.isEmpty ? "Not reported" : result.summary.interfaces.joined(separator: ", "), "analysis.summary.interfaces")
                 }
                 GroupBox("Evidence provenance") {
                     Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 7) {
-                        GridRow { Text("Capture").foregroundStyle(.secondary); Text(result.summary.captureURL.path) }
-                        GridRow { Text("SHA-256").foregroundStyle(.secondary); Text(result.summary.captureSHA256).font(.caption.monospaced()) }
-                        GridRow { Text("First packet").foregroundStyle(.secondary); Text(result.summary.firstPacket?.formatted() ?? "Unavailable") }
-                        GridRow { Text("Last packet").foregroundStyle(.secondary); Text(result.summary.lastPacket?.formatted() ?? "Unavailable") }
-                        GridRow { Text("Decoder").foregroundStyle(.secondary); Text(result.coverage.tsharkVersion) }
-                        GridRow { Text("Active resolution").foregroundStyle(.secondary); Text(result.coverage.activeResolutionEnabled ? "Enabled for IPv4 and IPv6" : "Disabled") }
+                        GridRow { Text("Capture").foregroundStyle(.secondary); Text(result.summary.captureURL.path).accessibilityIdentifier("analysis.summary.capture") }
+                        GridRow { Text("SHA-256").foregroundStyle(.secondary); Text(result.summary.captureSHA256).font(.caption.monospaced()).accessibilityIdentifier("analysis.summary.sha256") }
+                        GridRow { Text("First packet").foregroundStyle(.secondary); Text(result.summary.firstPacket?.formatted() ?? "Unavailable").accessibilityIdentifier("analysis.summary.first-packet") }
+                        GridRow { Text("Last packet").foregroundStyle(.secondary); Text(result.summary.lastPacket?.formatted() ?? "Unavailable").accessibilityIdentifier("analysis.summary.last-packet") }
+                        GridRow { Text("Decoder").foregroundStyle(.secondary); Text(result.coverage.tsharkVersion).accessibilityIdentifier("analysis.summary.decoder") }
+                        GridRow { Text("Active resolution").foregroundStyle(.secondary); Text(result.coverage.activeResolutionEnabled ? "Enabled for IPv4 and IPv6" : "Disabled").accessibilityIdentifier("analysis.summary.active-resolution") }
                     }
                     .textSelection(.enabled)
                     .padding(.vertical, 6)
@@ -206,10 +206,10 @@ struct AnalysisSummaryView: View {
         }
     }
 
-    private func metric(_ title: String, _ value: String) -> some View {
+    private func metric(_ title: String, _ value: String, _ identifier: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.title3.bold()).lineLimit(2)
+            Text(value).font(.title3.bold()).lineLimit(2).accessibilityIdentifier(identifier)
         }
         .frame(maxWidth: .infinity, minHeight: 65, alignment: .leading)
         .padding()
