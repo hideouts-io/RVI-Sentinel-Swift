@@ -55,9 +55,9 @@ func readApplePCAPNGMetadata(url: URL, limits: ApplePCAPNGMetadataLimits) throws
     guard limits.maximumFrames > 0, limits.maximumProcesses > 0, limits.maximumOptionBytes > 0, limits.maximumMetadataBytes > 0 else {
         throw ApplePCAPNGMetadataError.limit("frame, process, option and storage bounds must be positive")
     }
-    return try withPCAPNGMetadataInput(url: url, maximumBytes: limits.maximumCaptureBytes, timeout: limits.timeout) { input in
+    return try withPCAPNGMetadataInput(url: url, maximumBytes: limits.maximumCaptureBytes, timeout: limits.timeout) { input, database in
         var frames: [UInt64: ApplePCAPNGFrameProcesses] = [:]
-        guard let frameCount = try scanApplePCAPNGMetadata(input: input, maximumOptionBytes: limits.maximumOptionBytes, limits: limits, consume: { frame, processes in
+        guard let frameCount = try scanApplePCAPNGMetadata(input: input, database: database, maximumOptionBytes: limits.maximumOptionBytes, limits: limits, consume: { frame, _, processes in
             frames[frame] = processes
         }) else { return nil }
         return ApplePCAPNGMetadata(frameCount: frameCount, processes: frames)
@@ -65,20 +65,39 @@ func readApplePCAPNGMetadata(url: URL, limits: ApplePCAPNGMetadataLimits) throws
 }
 
 /// Validates the whole container and emits process facts after each packet block is valid.
-/// Frame numbers start at one and include packets without process facts, which are not emitted.
-/// Frames are never retained; only section-local interface and process definitions are kept.
+/// Ordinals start at one and count physical packet blocks, not decoder event records.
+/// Frames and section-local definitions are disk-backed, never retained as whole-section arrays.
 /// Individual option lists and file operations remain bounded, but total scan size and duration
 /// are unrestricted. Consumers must discard partial results if validation or consumption throws.
 func streamApplePCAPNGMetadata(url: URL, consume: (UInt64, ApplePCAPNGFrameProcesses) throws -> Void) throws -> UInt64? {
-    try withPCAPNGMetadataInput(url: url, maximumBytes: nil, timeout: .seconds(60)) { input in
-        try scanApplePCAPNGMetadata(input: input, maximumOptionBytes: 131_072, limits: nil, consume: consume)
+    try withPCAPNGMetadataInput(url: url, maximumBytes: nil, timeout: .seconds(60)) { input, database in
+        try scanApplePCAPNGMetadata(input: input, database: database, maximumOptionBytes: 131_072, limits: nil) { ordinal, _, processes in
+            try consume(ordinal, processes)
+        }
     }
 }
 
-private func withPCAPNGMetadataInput<Result>(url: URL, maximumBytes: Int64?, timeout: Duration, read: (PCAPNGMetadataInput) throws -> Result) throws -> Result {
+/// Joins original facts by byte offset, independent of which non-packet blocks a decoder
+/// emits as numbered records. Returns nil for classic PCAP; no decoder numbering is inferred.
+func streamApplePCAPNGProcessOffsets(url: URL, consume: (UInt64, ApplePCAPNGFrameProcesses) throws -> Void) throws -> UInt64? {
+    try withPCAPNGMetadataInput(url: url, maximumBytes: nil, timeout: .seconds(60)) { input, database in
+        try scanApplePCAPNGMetadata(input: input, database: database, maximumOptionBytes: 131_072, limits: nil) { _, offset, processes in
+            try consume(offset, processes)
+        }
+    }
+}
+
+private func withPCAPNGMetadataInput<Result>(url: URL, maximumBytes: Int64?, timeout: Duration, read: (PCAPNGMetadataInput, PacketDatabase) throws -> Result) throws -> Result {
     let input = try PCAPNGMetadataInput(url: url, maximumBytes: maximumBytes, timeout: timeout)
     do {
-        let result = try read(input)
+        let result = try withPacketDatabase(files: PacketStorageFiles(), access: .write) { database in
+            try database.execute("CREATE TABLE metadata_interfaces(id INTEGER PRIMARY KEY,snap_length INTEGER NOT NULL)", values: [])
+            try database.execute("CREATE TABLE metadata_processes(id INTEGER PRIMARY KEY,pid INTEGER NOT NULL,name TEXT)", values: [])
+            try database.execute("BEGIN", values: [])
+            let result = try read(input, database)
+            try database.execute("COMMIT", values: [])
+            return result
+        }
         try input.close()
         return result
     } catch {
@@ -89,15 +108,15 @@ private func withPCAPNGMetadataInput<Result>(url: URL, maximumBytes: Int64?, tim
     }
 }
 
-private func scanApplePCAPNGMetadata(input: PCAPNGMetadataInput, maximumOptionBytes: Int, limits: ApplePCAPNGMetadataLimits?, consume: (UInt64, ApplePCAPNGFrameProcesses) throws -> Void) throws -> UInt64? {
+private func scanApplePCAPNGMetadata(input: PCAPNGMetadataInput, database: PacketDatabase, maximumOptionBytes: Int, limits: ApplePCAPNGMetadataLimits?, consume: (UInt64, UInt64, ApplePCAPNGFrameProcesses) throws -> Void) throws -> UInt64? {
     let deadline = limits.map { ContinuousClock().now + $0.timeout }
     let magic = try input.read(count: 4)
     guard magic == Data([0x0a, 0x0d, 0x0d, 0x0a]) else { return nil }
     try input.seek(to: 0)
     var order: PCAPNGByteOrder?
     var sectionEnd: UInt64?
-    var interfaces: [UInt32] = []
-    var identities: [ApplePCAPNGProcess] = []
+    var interfaceCount: Int64 = 0
+    var processCount: Int64 = 0
     var frameCount: UInt64 = 0
     var retainedBytes = 0
     while input.position < input.size {
@@ -117,8 +136,10 @@ private func scanApplePCAPNGMetadata(input: PCAPNGMetadataInput, maximumOptionBy
                 default: throw malformedPCAPNG(offset, "invalid section byte-order magic")
                 }
                 order = byteOrder
-                identities = []
-                interfaces = []
+                try database.execute("DELETE FROM metadata_processes", values: [])
+                try database.execute("DELETE FROM metadata_interfaces", values: [])
+                processCount = 0
+                interfaceCount = 0
             } else {
                 guard let existing = order else { throw malformedPCAPNG(offset, "block appears before a section header") }
                 byteOrder = existing
@@ -133,7 +154,7 @@ private func scanApplePCAPNGMetadata(input: PCAPNGMetadataInput, maximumOptionBy
             case 0x0a0d0d0a:
                 guard length >= 28 else { throw malformedPCAPNG(offset, "section header is too short") }
                 let fixed = try input.read(count: 12)
-                guard pcapngUInt16(fixed, at: 0, order: byteOrder) == 1, pcapngUInt16(fixed, at: 2, order: byteOrder) == 0 else { throw malformedPCAPNG(offset, "unsupported section version") }
+                guard pcapngUInt16(fixed, at: 0, order: byteOrder) == 1, [0, 2].contains(pcapngUInt16(fixed, at: 2, order: byteOrder)) else { throw malformedPCAPNG(offset, "unsupported section version") }
                 let declared = pcapngUInt64(fixed, at: 4, order: byteOrder)
                 if declared == UInt64.max { sectionEnd = nil }
                 else {
@@ -143,13 +164,14 @@ private func scanApplePCAPNGMetadata(input: PCAPNGMetadataInput, maximumOptionBy
                 _ = try readPCAPNGOptions(input: input, end: end - 4, order: byteOrder, maximumBytes: maximumOptionBytes)
             case 1:
                 guard length >= 20 else { throw malformedPCAPNG(offset, "interface block is too short") }
-                if limits != nil, interfaces.count >= 4_096 { throw malformedPCAPNG(offset, "too many interfaces") }
+                if limits != nil, interfaceCount >= 4_096 { throw malformedPCAPNG(offset, "too many interfaces") }
                 let fixed = try input.read(count: 8)
-                interfaces.append(pcapngUInt32(fixed, at: 4, order: byteOrder))
+                try database.execute("INSERT INTO metadata_interfaces(id,snap_length) VALUES(?,?)", values: [.integer(interfaceCount), .integer(Int64(pcapngUInt32(fixed, at: 4, order: byteOrder)))])
+                interfaceCount += 1
                 _ = try readPCAPNGOptions(input: input, end: end - 4, order: byteOrder, maximumBytes: maximumOptionBytes)
             case 0x80000001:
                 guard length >= 16 else { throw malformedPCAPNG(offset, "process block is too short") }
-                if let limits, identities.count >= limits.maximumProcesses { throw malformedPCAPNG(offset, "too many process identities") }
+                if let limits, processCount >= limits.maximumProcesses { throw malformedPCAPNG(offset, "too many process identities") }
                 let pid = pcapngUInt32(try input.read(count: 4), at: 0, order: .little)
                 guard pid <= UInt32(Int32.max) else { throw malformedPCAPNG(offset, "process ID exceeds the supported domain range") }
                 let options = try readPCAPNGOptions(input: input, end: end - 4, order: byteOrder, maximumBytes: maximumOptionBytes)
@@ -160,31 +182,34 @@ private func scanApplePCAPNGMetadata(input: PCAPNGMetadataInput, maximumOptionBy
                     guard let text = String(data: value, encoding: .utf8), !text.isEmpty, text.utf8.count <= 256, !text.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw malformedPCAPNG(offset, "process name is invalid UTF-8, empty, oversized or contains control characters") }
                     name = text
                 } else { name = nil }
-                identities.append(ApplePCAPNGProcess(pid: pid, name: name))
+                try database.execute("INSERT INTO metadata_processes(id,pid,name) VALUES(?,?,?)", values: [.integer(processCount), .integer(Int64(pid)), name.map(PacketSQLValue.text) ?? .null])
+                processCount += 1
                 if limits != nil { retainedBytes += 64 + (name?.utf8.count ?? 0) }
             case 2, 6:
                 guard length >= 32 else { throw malformedPCAPNG(offset, "packet block is too short") }
                 let fixed = try input.read(count: 20)
                 let interface = type == 6 ? pcapngUInt32(fixed, at: 0, order: byteOrder) : UInt32(pcapngUInt16(fixed, at: 0, order: byteOrder))
-                guard Int(interface) < interfaces.count else { throw malformedPCAPNG(offset, "packet references an undefined interface") }
+                guard Int64(interface) < interfaceCount else { throw malformedPCAPNG(offset, "packet references an undefined interface") }
+                let snapLength = try database.integer("SELECT snap_length FROM metadata_interfaces WHERE id=?", values: [.integer(Int64(interface))])
                 let captured = pcapngUInt32(fixed, at: 12, order: byteOrder)
                 let wire = pcapngUInt32(fixed, at: 16, order: byteOrder)
-                guard captured <= wire, interfaces[Int(interface)] == 0 || captured <= interfaces[Int(interface)] else { throw malformedPCAPNG(offset, "captured packet length exceeds wire length or interface snap length") }
+                guard captured <= wire, snapLength == 0 || Int64(captured) <= snapLength else { throw malformedPCAPNG(offset, "captured packet length exceeds wire length or interface snap length") }
                 let padded = (UInt64(captured) + 3) & ~UInt64(3)
                 guard padded <= end - 4 - input.position else { throw malformedPCAPNG(offset, "packet payload extends beyond its block") }
                 try input.seek(to: input.position + padded)
                 let options = try readPCAPNGOptions(input: input, end: end - 4, order: byteOrder, maximumBytes: maximumOptionBytes)
                 frameCount += 1
                 if type == 6 {
-                    let primary = try referencedAppleProcess(code: 0x8001, options: options, identities: identities, offset: offset)
-                    let effective = try referencedAppleProcess(code: 0x8003, options: options, identities: identities, offset: offset)
+                    let primary = try referencedAppleProcess(code: 0x8001, options: options, database: database, offset: offset)
+                    let effective = try referencedAppleProcess(code: 0x8003, options: options, database: database, offset: offset)
                     if primary != nil || effective != nil {
                         frameProcesses = ApplePCAPNGFrameProcesses(primary: primary, effective: effective)
                         if limits != nil { retainedBytes += 256 }
                     }
                 }
             case 3:
-                guard length >= 16, let snapLength = interfaces.first else { throw malformedPCAPNG(offset, "simple packet has no interface or is too short") }
+                guard length >= 16, interfaceCount > 0 else { throw malformedPCAPNG(offset, "simple packet has no interface or is too short") }
+                let snapLength = UInt32(try database.integer("SELECT snap_length FROM metadata_interfaces WHERE id=0", values: []))
                 let wire = pcapngUInt32(try input.read(count: 4), at: 0, order: byteOrder)
                 let captured = snapLength == 0 ? wire : min(wire, snapLength)
                 guard (UInt64(captured) + 3) & ~UInt64(3) == end - 4 - input.position else { throw malformedPCAPNG(offset, "simple packet payload length does not match its interface") }
@@ -198,7 +223,7 @@ private func scanApplePCAPNGMetadata(input: PCAPNGMetadataInput, maximumOptionBy
             let trailer = pcapngUInt32(try input.read(count: 4), at: 0, order: byteOrder)
             guard UInt64(trailer) == length, input.position == end else { throw malformedPCAPNG(offset, "block trailer length differs from its header") }
             if let frameProcesses {
-                try consume(frameCount, frameProcesses)
+                try consume(frameCount, offset, frameProcesses)
                 try Task.checkCancellation()
             }
         }
@@ -207,14 +232,19 @@ private func scanApplePCAPNGMetadata(input: PCAPNGMetadataInput, maximumOptionBy
     return frameCount
 }
 
-private func referencedAppleProcess(code: UInt16, options: [PCAPNGOption], identities: [ApplePCAPNGProcess], offset: UInt64) throws -> ApplePCAPNGProcess? {
+private func referencedAppleProcess(code: UInt16, options: [PCAPNGOption], database: PacketDatabase, offset: UInt64) throws -> ApplePCAPNGProcess? {
     let references = options.filter { $0.code == code }
     guard references.count <= 1 else { throw malformedPCAPNG(offset, "packet repeats a process reference") }
     guard let reference = references.first else { return nil }
     guard reference.value.count == 4 else { throw malformedPCAPNG(offset, "process reference is not a 32-bit index") }
     let index = pcapngUInt32(reference.value, at: 0, order: .little)
-    guard Int(index) < identities.count else { throw malformedPCAPNG(offset, "packet references an undefined process identity") }
-    return identities[Int(index)]
+    var process: ApplePCAPNGProcess?
+    try database.rows("SELECT pid,name FROM metadata_processes WHERE id=?", values: [.integer(Int64(index))]) { row in
+        guard let pid = UInt32(exactly: try row.integer(0)) else { throw PacketStorageError.invalidValue("PCAPNG process ID") }
+        process = ApplePCAPNGProcess(pid: pid, name: try row.optionalText(1))
+    }
+    guard let process else { throw malformedPCAPNG(offset, "packet references an undefined process identity") }
+    return process
 }
 
 private func readPCAPNGOptions(input: PCAPNGMetadataInput, end: UInt64, order: PCAPNGByteOrder, maximumBytes: Int) throws -> [PCAPNGOption] {

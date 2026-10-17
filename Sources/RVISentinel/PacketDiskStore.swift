@@ -132,7 +132,7 @@ func createPacketStorage(files: PacketStorageFiles) throws {
             "CREATE TABLE packet_interfaces(frame INTEGER NOT NULL, value TEXT NOT NULL, PRIMARY KEY(frame,value)) WITHOUT ROWID",
             "CREATE TABLE packet_processes(frame INTEGER NOT NULL, value INTEGER NOT NULL, PRIMARY KEY(frame,value)) WITHOUT ROWID",
             "CREATE TABLE sessions(id TEXT PRIMARY KEY, context BLOB NOT NULL, search TEXT NOT NULL, first_seconds INTEGER NOT NULL, first_nanos INTEGER NOT NULL, first_frame INTEGER NOT NULL, first_stamp BLOB NOT NULL, last_seconds INTEGER NOT NULL, last_nanos INTEGER NOT NULL, last_frame INTEGER NOT NULL, last_stamp BLOB NOT NULL, packet_count INTEGER NOT NULL CHECK(typeof(packet_count)='integer'), wire_bytes INTEGER NOT NULL CHECK(typeof(wire_bytes)='integer'))",
-            "CREATE TABLE apple_processes(frame INTEGER PRIMARY KEY, primary_pid INTEGER, primary_name TEXT, effective_pid INTEGER, effective_name TEXT)",
+            "CREATE TABLE apple_processes(file_offset INTEGER PRIMARY KEY, primary_pid INTEGER, primary_name TEXT, effective_pid INTEGER, effective_name TEXT, matched INTEGER NOT NULL)",
             "CREATE TABLE captured_names(frame INTEGER PRIMARY KEY, payload BLOB NOT NULL, search TEXT NOT NULL)"
         ]
         for sql in statements { try database.execute(sql, values: []) }
@@ -160,9 +160,9 @@ func packetStorageSearch(_ text: String) -> String {
     text.lowercased().precomposedStringWithCanonicalMapping
 }
 
-func storedAppleProcesses(database: PacketDatabase, frame: UInt64) throws -> ApplePCAPNGFrameProcesses? {
+func storedAppleProcesses(database: PacketDatabase, fileOffset: Int64) throws -> ApplePCAPNGFrameProcesses? {
     var processes: ApplePCAPNGFrameProcesses?
-    try database.rows("SELECT primary_pid,primary_name,effective_pid,effective_name FROM apple_processes WHERE frame=?", values: [.integer(try packetStorageInteger(frame))]) { row in
+    try database.rows("SELECT primary_pid,primary_name,effective_pid,effective_name FROM apple_processes WHERE file_offset=?", values: [.integer(fileOffset)]) { row in
         let primary = try row.optionalInteger(0)
         let effective = try row.optionalInteger(2)
         let primaryName = try row.optionalText(1)

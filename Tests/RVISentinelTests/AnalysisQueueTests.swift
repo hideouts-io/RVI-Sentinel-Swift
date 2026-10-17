@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import RVI_Sentinel
 
@@ -85,17 +86,17 @@ final class AnalysisQueueTests: XCTestCase {
         state.prepareAnalysisQueue(captureURLs: captures)
         let ids = state.analysisQueue.map(\.id)
         let analysis = Task { await state.startAnalysis() }
-        let deadline = ContinuousClock().now + .seconds(15)
-        while state.analysisQueue[1].status == .queued && ContinuousClock().now < deadline {
-            await Task.yield()
-        }
-        guard state.isAnalyzing, state.analysisQueue[1].status == .analyzing else {
+        do {
+            try await waitForAnalysisQueueDecoderProgress(state: state, itemID: ids[1], minimumPackets: 5_000, timeout: .seconds(240))
+        } catch {
+            let diagnostics = analysisQueueDiagnostics(state: state)
             await state.cancelAnalysis()
             await analysis.value
-            XCTFail("The real decoder did not reach the second queue entry before the deadline.")
+            XCTFail("Expected actual decoder progress from the second queue entry before cancellation: \(error.localizedDescription)\nQueue before cleanup:\n\(diagnostics)")
             return
         }
 
+        XCTAssertGreaterThanOrEqual(state.analysisQueue[1].progress.decodedPackets, 5_000)
         XCTAssertEqual(state.analysisQueue[0].status, .completed)
         XCTAssertEqual(state.analysisQueue[2].status, .queued)
         state.selectAnalysisResult(id: ids[0])
@@ -129,4 +130,65 @@ final class AnalysisQueueTests: XCTestCase {
         XCTAssertEqual(state.analysisResult?.coverage.activeResolutionEnabled, false)
         XCTAssertEqual(try captures.map { try sha256(url: $0) }, originalHashes)
     }
+}
+
+private enum AnalysisQueueProgressError: LocalizedError {
+    case timedOut(Duration)
+    case missingEntry(UUID)
+    case entryEnded(AnalysisQueueStatus)
+    case progressStreamEnded
+
+    var errorDescription: String? {
+        switch self {
+        case let .timedOut(timeout): "No decoder progress rendezvous within the real integration timeout of \(timeout)."
+        case let .missingEntry(id): "The expected queue entry \(id.uuidString) disappeared."
+        case let .entryEnded(status): "The target entry became \(status.rawValue) before the decoder cancellation rendezvous."
+        case .progressStreamEnded: "Queue progress observation ended before the decoder cancellation rendezvous."
+        }
+    }
+}
+
+/// Waits for decoded packets from one stable queue identity, rather than a startup status.
+@MainActor
+private func waitForAnalysisQueueDecoderProgress(state: AppState, itemID: UUID, minimumPackets: Int, timeout: Duration) async throws {
+    let channel = AsyncStream<[AnalysisQueueItem]>.makeStream(bufferingPolicy: .bufferingNewest(8))
+    let observation = state.$analysisQueue.sink { queue in channel.continuation.yield(queue) }
+    defer {
+        observation.cancel()
+        channel.continuation.finish()
+    }
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        group.addTask {
+            for await queue in channel.stream {
+                try Task.checkCancellation()
+                guard let item = queue.first(where: { $0.id == itemID }) else { throw AnalysisQueueProgressError.missingEntry(itemID) }
+                switch item.status {
+                case .queued: continue
+                case .analyzing:
+                    if item.progress.decodedPackets >= minimumPackets { return }
+                case .completed, .failed, .cancelled:
+                    throw AnalysisQueueProgressError.entryEnded(item.status)
+                }
+            }
+            try Task.checkCancellation()
+            throw AnalysisQueueProgressError.progressStreamEnded
+        }
+        group.addTask {
+            try await Task.sleep(for: timeout)
+            throw AnalysisQueueProgressError.timedOut(timeout)
+        }
+        defer { group.cancelAll() }
+        _ = try await group.next()
+    }
+    try Task.checkCancellation()
+    guard let item = state.analysisQueue.first(where: { $0.id == itemID }) else { throw AnalysisQueueProgressError.missingEntry(itemID) }
+    guard state.isAnalyzing, item.status == .analyzing else { throw AnalysisQueueProgressError.entryEnded(item.status) }
+}
+
+@MainActor
+private func analysisQueueDiagnostics(state: AppState) -> String {
+    let entries = state.analysisQueue.map { item in
+        "\(item.captureURL.lastPathComponent) [\(item.id.uuidString)]: status=\(item.status.rawValue), decodedPackets=\(item.progress.decodedPackets), progress=\(item.progress.status), error=\(item.error ?? "none")"
+    }
+    return (["isAnalyzing=\(state.isAnalyzing), progress=\(state.analysisProgress.status), lastError=\(state.lastError ?? "none")"] + entries).joined(separator: "\n")
 }

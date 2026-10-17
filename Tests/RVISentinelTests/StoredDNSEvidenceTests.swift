@@ -73,6 +73,79 @@ struct StoredDNSEvidenceTests {
         }
     }
 
+    @Test func repeatedDiamondBranchingFailsExplicitlyAndRollsBack() throws {
+        try withStoredDNSFixture(packets: [
+            storedDNSAnswerPacket(frame: 1, epoch: "1", client: "10.0.0.2", interface: "en0"),
+            storedDNSFlowPacket(frame: 2, epoch: "2", client: "10.0.0.2", remote: "192.0.2.10", interface: "en0")
+        ]) { database, artifact, records in
+            // Nine stages have only 37 RRs and 19-name chains. Even without the guard,
+            // this regression fixture can produce at most 2,045 bindings.
+            let message = storedDNSAnswer(packet: records[0], questions: [],
+                answers: storedDNSDiamondAnswers(stages: 9, prefix: "diamond", ttl: 100), code: 0, query: nil)
+            try storeDNSMessages(messages: [message], artifact: artifact.id, database: database)
+            try database.execute("BEGIN", values: [])
+            do {
+                try indexStoredDNSBindings(database: database, artifact: artifact.id)
+                Issue.record("Repeated branching must fail before the full graph is expanded.")
+            } catch let error as CapturedDNSError {
+                guard case let .malformed(frame, reason) = error else { throw error }
+                #expect(frame == 1)
+                #expect(reason.contains("256 distinct evidence paths"))
+            }
+            #expect(try database.integer("SELECT COUNT(*) FROM dns_bindings", values: []) < 2_045)
+            #expect(try database.integer("SELECT indexed FROM dns_state WHERE id=1", values: []) == 0)
+            try database.execute("ROLLBACK", values: [])
+            #expect(try database.integer("SELECT COUNT(*) FROM dns_bindings", values: []) == 0)
+            #expect(try database.integer("SELECT COUNT(*) FROM dns_binding_ranges", values: []) == 0)
+            #expect(try database.integer("SELECT COUNT(*) FROM dns_alias_ranges", values: []) == 0)
+            #expect(try database.integer("SELECT COUNT(*) FROM dns_messages", values: []) == 1)
+        }
+    }
+
+    @Test func independentResponsesRetainAllPathsAtTheBranchingBoundary() throws {
+        try withStoredDNSFixture(packets: [
+            storedDNSAnswerPacket(frame: 1, epoch: "1", client: "10.0.0.2", interface: "en0"),
+            storedDNSAnswerPacket(frame: 2, epoch: "2", client: "10.0.0.2", interface: "en0"),
+            storedDNSFlowPacket(frame: 3, epoch: "3", client: "10.0.0.2", remote: "192.0.2.10", interface: "en0")
+        ]) { database, artifact, records in
+            let messages: [CapturedDNSMessage] = [
+                storedDNSAnswer(packet: records[0], questions: [],
+                    answers: storedDNSDiamondAnswers(stages: 8, prefix: "first", ttl: 100), code: 0, query: nil),
+                storedDNSAnswer(packet: records[1], questions: [],
+                    answers: storedDNSDiamondAnswers(stages: 8, prefix: "second", ttl: 100), code: 0, query: nil)
+            ]
+            for message in messages { try storeDNSMessages(messages: [message], artifact: artifact.id, database: database) }
+            try indexStoredDNSBindings(database: database, artifact: artifact.id)
+            let names = try storedDNSPacketNames(database: database, packet: records[2]).filter(\.isInferred)
+            #expect(names.count == 2_042)
+            #expect(names.filter { $0.name == "first-v8.example" }.count == 256)
+            #expect(names.filter { $0.name == "second-v8.example" }.count == 256)
+            try expectStoredDNSParity(database: database, artifact: artifact.id, records: records, messages: messages)
+        }
+    }
+
+    @Test func historicalAliasRefreshesDoNotAccumulateABranchingLimit() throws {
+        var packets: [DecodedPacket] = (1...258).map {
+            storedDNSAnswerPacket(frame: UInt64($0), epoch: String($0), client: "10.0.0.2", interface: "en0")
+        }
+        packets.append(storedDNSFlowPacket(frame: 259, epoch: "258.5", client: "10.0.0.2", remote: "192.0.2.10", interface: "en0"))
+        try withStoredDNSFixture(packets: packets) { database, artifact, records in
+            let address = storedDNSAnswer(packet: records[0], questions: [],
+                answers: [storedDNSAddress("target.example", address: "192.0.2.10", ttl: 1_000)], code: 0, query: nil)
+            try storeDNSMessages(messages: [address], artifact: artifact.id, database: database)
+            for record in records.dropFirst().dropLast() {
+                let refresh = storedDNSAnswer(packet: record, questions: [],
+                    answers: [storedDNSAlias("alias.example", target: "target.example", ttl: 1)], code: 0, query: nil)
+                try storeDNSMessages(messages: [refresh], artifact: artifact.id, database: database)
+            }
+            try indexStoredDNSBindings(database: database, artifact: artifact.id)
+            #expect(try database.integer("SELECT COUNT(*) FROM dns_bindings", values: []) == 258)
+            let names = try storedDNSPacketNames(database: database, packet: #require(records.last)).filter(\.isInferred)
+            #expect(Set(names.map(\.name)) == ["alias.example", "target.example"])
+            #expect(names.first { $0.name == "alias.example" }?.supportingPackets.map(\.frameNumber) == [1, 258])
+        }
+    }
+
     @Test func unicodeScopeOwnerAndReplacementKeysPreserveSwiftEquality() throws {
         try withStoredDNSFixture(packets: [
             storedDNSQueryPacket(frame: 1, epoch: "1", client: "10.0.0.2", interface: "réseau"),
@@ -261,6 +334,16 @@ private func storedDNSAddress(_ owner: String, address: String, ttl: UInt32) -> 
 }
 private func storedDNSAlias(_ owner: String, target: String, ttl: UInt32) -> CapturedDNSResourceRecord {
     CapturedDNSResourceRecord(owner: owner, recordType: 5, recordClass: 1, ttlSeconds: ttl, value: .canonicalName(target))
+}
+private func storedDNSDiamondAnswers(stages: Int, prefix: String, ttl: UInt32) -> [CapturedDNSResourceRecord] {
+    [storedDNSAddress("\(prefix)-v0.example", address: "192.0.2.10", ttl: ttl)] + (1...stages).flatMap { stage in
+        [
+            storedDNSAlias("\(prefix)-a\(stage).example", target: "\(prefix)-v\(stage - 1).example", ttl: ttl),
+            storedDNSAlias("\(prefix)-b\(stage).example", target: "\(prefix)-v\(stage - 1).example", ttl: ttl),
+            storedDNSAlias("\(prefix)-v\(stage).example", target: "\(prefix)-a\(stage).example", ttl: ttl),
+            storedDNSAlias("\(prefix)-v\(stage).example", target: "\(prefix)-b\(stage).example", ttl: ttl)
+        ]
+    }
 }
 private func storedDNSQuery(packet: PacketRecord, questions: [CapturedDNSQuestion]) -> CapturedDNSMessage {
     CapturedDNSMessage(packetID: packet.id, transactionID: 7, isResponse: false, isTruncated: false, responseCode: 0, questions: questions, responseToFrame: nil, answers: [], unsupportedRecordTypes: [])

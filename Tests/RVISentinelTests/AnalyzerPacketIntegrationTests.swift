@@ -2,6 +2,106 @@ import XCTest
 @testable import RVI_Sentinel
 
 final class AnalyzerPacketIntegrationTests: XCTestCase {
+    func testRealDecoderAcceptsCompatiblePCAPNGMinorVersionTwo() async throws {
+        _ = try XCTUnwrap(resolveTShark(), "TShark is required for compatible PCAPNG version integration.")
+        let directory = try createTemporaryTestDirectory()
+        addTeardownBlock { try FileManager.default.removeItem(at: directory) }
+        let packet = generatedLoopbackUDPPacket()
+        let bigHeader = metadataBigEndianBlock(type: 0x0a0d0d0a, body: metadataBigEndian(UInt32(0x1a2b3c4d)) + metadataBigEndian(UInt16(1)) + metadataBigEndian(UInt16(0)) + metadataBigEndian(UInt64.max))
+        let bigInterface = metadataBigEndianBlock(type: 1, body: metadataBigEndian(UInt16(101)) + metadataBigEndian(UInt16(0)) + metadataBigEndian(UInt32(65_535)))
+        let bigPacket = metadataBigEndianBlock(type: 6, body: metadataBigEndian(UInt32(0)) + metadataBigEndian(UInt32(0)) + metadataBigEndian(UInt32(1)) + metadataBigEndian(UInt32(packet.count)) + metadataBigEndian(UInt32(packet.count)) + packet)
+        // Section-version compatibility is independent of vendor-specific process encoding.
+        for (label, original) in [("little", try generatedAppleMetadataPacketCapture()), ("big", bigHeader + bigInterface + bigPacket)] {
+            var bytes = original
+            bytes.replaceSubrange(14..<16, with: label == "little" ? metadataLittleEndian(UInt16(2)) : metadataBigEndian(UInt16(2)))
+            let capture = directory.appendingPathComponent("compatible-version-\(label).pcapng")
+            try bytes.write(to: capture, options: .atomic)
+            let digest = try sha256(url: capture)
+            let result = try await TSharkAnalyzer(decoder: BoundedDecoder()).analyze(captureURL: capture, progress: { _ in })
+            let packets = try XCTUnwrap(result.packetAnalysis)
+            XCTAssertEqual(result.summary.packetCount, label == "little" ? 2 : 1)
+            if label == "little" { XCTAssertTrue(packets.records.allSatisfy { $0.process.processID == 343 }) }
+            else { XCTAssertTrue(packets.records.allSatisfy { $0.process.state == .unknown }) }
+            XCTAssertFalse(result.coverage.activeResolutionEnabled)
+            XCTAssertEqual(try sha256(url: capture), digest)
+            XCTAssertEqual(try Data(contentsOf: capture), bytes)
+        }
+    }
+
+    func testRealDecoderJoinsOriginalProcessesByOffsetAcrossJournalRecords() async throws {
+        _ = try XCTUnwrap(resolveTShark(), "TShark is required for mixed-record PCAPNG integration.")
+        let directory = try createTemporaryTestDirectory()
+        addTeardownBlock { try FileManager.default.removeItem(at: directory) }
+        let original = try generatedAppleMetadataPacketCapture()
+        let first = try metadataFixtureBlockRange(bytes: original, type: 6)
+        let journal = metadataLittleEndianBlock(type: 9, body: Data("__REALTIME_TIMESTAMP=1700000000000000\nMESSAGE=generated-integration\n\n".utf8))
+        // Unknown blocks are skipped, whereas each journal block is a decoder record.
+        let unknown = metadataLittleEndianBlock(type: 0x0f0f0f0f, body: Data())
+        let bytes = Data(original.prefix(first.lowerBound)) + unknown + journal + original.subdata(in: first)
+            + journal + Data(original.suffix(from: first.upperBound))
+        let capture = directory.appendingPathComponent("mixed-journal-packets.pcapng")
+        try bytes.write(to: capture, options: .atomic)
+        let digest = try sha256(url: capture)
+        let result = try await TSharkAnalyzer(decoder: BoundedDecoder()).analyze(captureURL: capture, progress: { _ in })
+        let packets = try XCTUnwrap(result.packetAnalysis)
+        XCTAssertEqual(packets.records.map(\.id.frameNumber).sorted(), [1, 2, 3, 4])
+        XCTAssertEqual(result.summary.packetCount, 4)
+        for record in packets.records {
+            if record.protocolStack.contains("systemd_journal") {
+                XCTAssertTrue([UInt64(1), 3].contains(record.id.frameNumber))
+                XCTAssertEqual(record.process.state, .unknown)
+                XCTAssertEqual(record.effectiveProcess.state, .unknown)
+            } else {
+                XCTAssertTrue([UInt64(2), 4].contains(record.id.frameNumber))
+                XCTAssertEqual(record.process.processID, 343)
+                XCTAssertEqual(record.process.name, "maild")
+                XCTAssertEqual(record.process.labels.first?.source, .applePCAPNG)
+            }
+        }
+        XCTAssertFalse(result.coverage.activeResolutionEnabled)
+        XCTAssertEqual(packets.artifact.id.sha256, digest)
+        XCTAssertEqual(try sha256(url: capture), digest)
+        XCTAssertEqual(try Data(contentsOf: capture), bytes)
+    }
+
+    func testStreamingAndRealDecoderRetainEarlyAndLateDiskBackedProcessDefinitions() async throws {
+        _ = try XCTUnwrap(resolveTShark(), "TShark is required for process-definition integration.")
+        let directory = try createTemporaryTestDirectory()
+        addTeardownBlock { try FileManager.default.removeItem(at: directory) }
+        let seed = try generatedAppleMetadataPacketCapture()
+        let definition = try metadataFixtureBlockRange(bytes: seed, type: 0x80000001)
+        let first = try metadataFixtureBlockRange(bytes: seed, type: 6)
+        var bytes = Data(seed.prefix(definition.lowerBound))
+        let definitionCount = 65_537
+        for index in 0..<definitionCount {
+            bytes.append(metadataLittleEndianBlock(type: 0x80000001, body: metadataLittleEndian(UInt32(index))))
+        }
+        bytes.append(seed.subdata(in: first))
+        var last = seed.subdata(in: first)
+        let reference = try XCTUnwrap(last.range(of: Data([0x01, 0x80, 0x04, 0x00, 0, 0, 0, 0])))
+        last.replaceSubrange((reference.lowerBound + 4)..<(reference.lowerBound + 8), with: metadataLittleEndian(UInt32(definitionCount - 1)))
+        bytes.append(last)
+        bytes.append(generatedBigEndianProcessMetadataSection())
+        let capture = directory.appendingPathComponent("many-section-process-definitions.pcapng")
+        try bytes.write(to: capture, options: .atomic)
+        let digest = try sha256(url: capture)
+        XCTAssertThrowsError(try readApplePCAPNGMetadata(url: capture, limits: .standard))
+        var processIDs: [UInt32] = []
+        let count = try streamApplePCAPNGMetadata(url: capture) { _, processes in
+            processIDs.append(try XCTUnwrap(processes.primary).pid)
+        }
+        XCTAssertEqual(count, 3)
+        XCTAssertEqual(processIDs, [0, 65_536, 343])
+        let result = try await TSharkAnalyzer(decoder: BoundedDecoder()).analyze(captureURL: capture, progress: { _ in })
+        let packets = try XCTUnwrap(result.packetAnalysis)
+        let fileOrder = packets.records.sorted { $0.id.frameNumber < $1.id.frameNumber }
+        XCTAssertEqual(fileOrder.map(\.process.processID), [0, 65_536, 343])
+        XCTAssertEqual(fileOrder.last?.process.name, "fixture-main")
+        XCTAssertEqual(fileOrder.last?.effectiveProcess.processID, 0)
+        XCTAssertEqual(try sha256(url: capture), digest)
+        XCTAssertEqual(try Data(contentsOf: capture), bytes)
+    }
+
     func testRealDecoderPreservesExplicitZeroProcessID() async throws {
         _ = try XCTUnwrap(resolveTShark(), "TShark is required for the recorded zero-PID integration case.")
         let directory = try createTemporaryTestDirectory()
@@ -55,6 +155,11 @@ final class AnalyzerPacketIntegrationTests: XCTestCase {
         var byteOrder = valid
         byteOrder[8] = 0
         variants.append(byteOrder)
+        for version in [(UInt16(1), UInt16(1)), (1, 3), (2, 0)] {
+            var unsupportedVersion = valid
+            unsupportedVersion.replaceSubrange(12..<16, with: metadataLittleEndian(version.0) + metadataLittleEndian(version.1))
+            variants.append(unsupportedVersion)
+        }
         var alignment = valid
         alignment[packet.lowerBound + 4] |= 1
         variants.append(alignment)
@@ -369,6 +474,12 @@ private func metadataBigEndian<Value: FixedWidthInteger>(_ value: Value) -> Data
 private func metadataLittleEndian<Value: FixedWidthInteger>(_ value: Value) -> Data {
     var encoded = value.littleEndian
     return withUnsafeBytes(of: &encoded) { Data($0) }
+}
+
+private func metadataLittleEndianBlock(type: UInt32, body: Data) -> Data {
+    let padded = body + Data(repeating: 0, count: (4 - body.count % 4) % 4)
+    let length = UInt32(padded.count + 12)
+    return metadataLittleEndian(type) + metadataLittleEndian(length) + padded + metadataLittleEndian(length)
 }
 
 private func metadataBigEndianOption(code: UInt16, value: Data) -> Data {

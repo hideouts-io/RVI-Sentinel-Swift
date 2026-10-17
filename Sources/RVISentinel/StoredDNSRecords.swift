@@ -14,7 +14,8 @@ func createStoredDNSEvidence(database: PacketDatabase) throws {
         "CREATE TABLE IF NOT EXISTS dns_positions(position INTEGER PRIMARY KEY,seconds INTEGER NOT NULL,nanos INTEGER NOT NULL,frame INTEGER NOT NULL,UNIQUE(seconds,nanos,frame))",
         "CREATE TABLE IF NOT EXISTS dns_alias_ranges(id INTEGER PRIMARY KEY,record_id INTEGER NOT NULL)",
         "CREATE VIRTUAL TABLE IF NOT EXISTS dns_alias_index USING rtree_i32(id,min_hi,max_hi,min_lo,max_lo,min_key,max_key)",
-        "CREATE TABLE IF NOT EXISTS dns_bindings(id INTEGER PRIMARY KEY,identity TEXT NOT NULL UNIQUE,scope TEXT NOT NULL,address TEXT NOT NULL,name TEXT NOT NULL,start_seconds INTEGER NOT NULL,start_nanos INTEGER NOT NULL,start_frame INTEGER NOT NULL,end_seconds INTEGER NOT NULL,end_nanos INTEGER NOT NULL,end_frame INTEGER NOT NULL,payload BLOB NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS dns_bindings(id INTEGER PRIMARY KEY,identity TEXT NOT NULL UNIQUE,origin_frame INTEGER NOT NULL,scope TEXT NOT NULL,address TEXT NOT NULL,name TEXT NOT NULL,start_seconds INTEGER NOT NULL,start_nanos INTEGER NOT NULL,start_frame INTEGER NOT NULL,end_seconds INTEGER NOT NULL,end_nanos INTEGER NOT NULL,end_frame INTEGER NOT NULL,payload BLOB NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS dns_binding_paths ON dns_bindings(origin_frame,scope,address,name,start_seconds,start_nanos,start_frame,end_seconds,end_nanos,end_frame)",
         "CREATE TABLE IF NOT EXISTS dns_binding_ranges(id INTEGER PRIMARY KEY,binding_id INTEGER NOT NULL)",
         "CREATE VIRTUAL TABLE IF NOT EXISTS dns_binding_index USING rtree_i32(id,min_hi,max_hi,min_lo,max_lo,min_key,max_key)"
     ]
@@ -133,7 +134,7 @@ func indexStoredDNSBindings(database: PacketDatabase, artifact: PacketArtifactID
             default: throw CapturedDNSError.malformed(frame: item.start.frame, reason: "address RR has a nonaddress value")
             }
             guard let owner = item.record.owner else { throw PacketStorageError.invalidValue("DNS address owner") }
-            try insertStoredDNSBinding(database: database, binding: StoredDNSBinding(scope: item.scope, name: owner, address: address,
+            try insertStoredDNSBinding(database: database, binding: StoredDNSBinding(originFrame: item.start.frame, scope: item.scope, name: owner, address: address,
                 start: item.start, end: item.end, chain: [owner], supportingPackets: item.supportingPackets.sorted { $0.frameNumber < $1.frameNumber }))
         }
     }
@@ -157,7 +158,7 @@ func indexStoredDNSBindings(database: PacketDatabase, artifact: PacketArtifactID
             let end = min(binding.end, alias.end)
             guard start < end else { throw PacketStorageError.invalidValue("DNS interval candidate") }
             let supporting = Set(binding.supportingPackets + alias.supportingPackets).sorted { $0.frameNumber < $1.frameNumber }
-            try insertStoredDNSBinding(database: database, binding: StoredDNSBinding(scope: binding.scope, name: owner, address: binding.address,
+            try insertStoredDNSBinding(database: database, binding: StoredDNSBinding(originFrame: binding.originFrame, scope: binding.scope, name: owner, address: binding.address,
                 start: start, end: end, chain: [owner] + binding.chain, supportingPackets: supporting))
         }
     }
@@ -248,6 +249,7 @@ private struct StoredDNSRecord: Codable {
 }
 
 private struct StoredDNSBinding: Codable {
+    let originFrame: UInt64
     let scope: String
     let name: String
     let address: String
@@ -399,11 +401,23 @@ private func insertStoredDNSBinding(database: PacketDatabase, binding: StoredDNS
         start: StoredDNSOrderKey(seconds: binding.start.timestamp.epochSeconds, nanos: binding.start.timestamp.nanoseconds, frame: binding.start.frame),
         end: StoredDNSOrderKey(seconds: binding.end.timestamp.epochSeconds, nanos: binding.end.timestamp.nanoseconds, frame: binding.end.frame),
         chain: binding.chain, supportingPackets: binding.supportingPackets)
-    try database.execute("INSERT INTO dns_bindings(identity,scope,address,name,start_seconds,start_nanos,start_frame,end_seconds,end_nanos,end_frame,payload) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(identity) DO NOTHING", values:
-        [.text(try storedDNSDigest(identity)), .text(binding.scope), .text(binding.address), .text(binding.name.precomposedStringWithCanonicalMapping)]
+    try database.execute("INSERT INTO dns_bindings(identity,origin_frame,scope,address,name,start_seconds,start_nanos,start_frame,end_seconds,end_nanos,end_frame,payload) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(identity) DO NOTHING", values:
+        [.text(try storedDNSDigest(identity)), .integer(try packetStorageInteger(binding.originFrame)), .text(binding.scope), .text(binding.address), .text(binding.name.precomposedStringWithCanonicalMapping)]
             + binding.start.sqlValues + binding.end.sqlValues + [.bytes(try JSONEncoder().encode(binding))])
     guard try database.integer("SELECT changes()", values: []) != 0 else { return }
     let id = try database.integer("SELECT last_insert_rowid()", values: [])
+    // Distinct chains evade identity deduplication. Bound ambiguity for one source
+    // response and interval, without accumulating a limit across historical refreshes.
+    let maximumPathsPerInterval: Int64 = 256
+    let pathCount = try database.integer("""
+        SELECT COUNT(*) FROM dns_bindings WHERE origin_frame=? AND scope=? AND address=? AND name=?
+          AND (start_seconds,start_nanos,start_frame)=(?,?,?) AND (end_seconds,end_nanos,end_frame)=(?,?,?)
+        """, values: [.integer(try packetStorageInteger(binding.originFrame)), .text(binding.scope), .text(binding.address),
+            .text(binding.name.precomposedStringWithCanonicalMapping)] + binding.start.sqlValues + binding.end.sqlValues)
+    guard pathCount <= maximumPathsPerInterval else {
+        throw CapturedDNSError.malformed(frame: binding.originFrame,
+            reason: "CNAME branching exceeds \(maximumPathsPerInterval) distinct evidence paths for one response, owner, address, and validity interval")
+    }
     let key = try storedDNSLookupKey(scope: binding.scope, value: binding.address)
     for box in try storedDNSIntervalBoxes(database: database, start: binding.start, end: binding.end) {
         try database.execute("INSERT INTO dns_binding_ranges(binding_id) VALUES(?)", values: [.integer(id)])

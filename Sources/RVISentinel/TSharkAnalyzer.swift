@@ -9,7 +9,7 @@ actor TSharkAnalyzer {
     private var associationsTask: Task<Void, Error>?
     private var hashTask: Task<String, Error>?
     private var metadataTask: Task<UInt64?, Error>?
-    private var containerFrameCount: UInt64?
+    private var hasPCAPNGMetadata = false
     private var dnsLookupDatabase: PacketDatabase?
     private var hasDNS = false
 
@@ -43,7 +43,7 @@ actor TSharkAnalyzer {
             hashTask = nil
             associationsTask = nil
             metadataTask = nil
-            containerFrameCount = nil
+            hasPCAPNGMetadata = false
             dnsLookupDatabase = nil
         }
         guard captureURL.isFileURL, FileManager.default.fileExists(atPath: captureURL.path),
@@ -95,9 +95,9 @@ actor TSharkAnalyzer {
         let originalMetadataTask = Task.detached(priority: .userInitiated) {
             try withPacketDatabase(files: files, access: .write) { database in
                 try database.execute("BEGIN", values: [])
-                let count = try streamApplePCAPNGMetadata(url: captureURL) { frame, processes in
-                    try database.execute("INSERT INTO apple_processes(frame,primary_pid,primary_name,effective_pid,effective_name) VALUES(?,?,?,?,?)", values: [
-                        .integer(try packetStorageInteger(frame)), processes.primary.map { .integer(Int64($0.pid)) } ?? .null,
+                let count = try streamApplePCAPNGProcessOffsets(url: captureURL) { offset, processes in
+                    try database.execute("INSERT INTO apple_processes(file_offset,primary_pid,primary_name,effective_pid,effective_name,matched) VALUES(?,?,?,?,?,0)", values: [
+                        .integer(try packetStorageInteger(offset)), processes.primary.map { .integer(Int64($0.pid)) } ?? .null,
                         processes.primary?.name.map(PacketSQLValue.text) ?? .null,
                         processes.effective.map { .integer(Int64($0.pid)) } ?? .null,
                         processes.effective?.name.map(PacketSQLValue.text) ?? .null
@@ -108,7 +108,11 @@ actor TSharkAnalyzer {
             }
         }
         metadataTask = originalMetadataTask
-        containerFrameCount = try await withTaskCancellationHandler { try await originalMetadataTask.value } onCancel: { originalMetadataTask.cancel() }
+        let containerPacketCount = try await withTaskCancellationHandler { try await originalMetadataTask.value } onCancel: { originalMetadataTask.cancel() }
+        hasPCAPNGMetadata = containerPacketCount != nil
+        if hasPCAPNGMetadata, !supported.contains(.frameFileOffset) {
+            throw NativeAnalysisError.requiredFieldsMissing([TSharkField.frameFileOffset.rawValue])
+        }
         try checkCancellation()
         guard try await captureHash(captureURL) == hashBefore else {
             throw NativeAnalysisError.invalidCapture("The original capture changed during container metadata inspection. Reimport a stable saved file.")
@@ -125,8 +129,8 @@ actor TSharkAnalyzer {
         guard summaryAccumulator.packetCount > 0, let writer = packetWriter else {
             throw NativeAnalysisError.invalidCapture("TShark decoded zero packets. The file may be empty, truncated, or unsupported.")
         }
-        if let containerFrameCount, containerFrameCount != UInt64(summaryAccumulator.packetCount) {
-            throw NativeAnalysisError.invalidCapture("TShark packet count does not match the original PCAPNG container. Check the decoder version and reimport the complete capture.")
+        guard try writer.database.integer("SELECT COUNT(*) FROM apple_processes WHERE matched=0", values: []) == 0 else {
+            throw NativeAnalysisError.invalidCapture("TShark omitted an original PCAPNG packet with process metadata. Check the decoder version and reimport the complete capture.")
         }
         progress(AnalysisProgress(decodedPackets: summaryAccumulator.packetCount, status: "Indexing packet sessions and verifying the original capture."))
         let packets = try writer.finish()
@@ -175,10 +179,23 @@ actor TSharkAnalyzer {
         try checkCancellation()
         guard !line.isEmpty else { throw NativeAnalysisError.malformedRow("TShark returned an empty packet row") }
         let decoded = try decodePacketRow(row: line, fields: fields)
-        guard let writer = packetWriter, let text = decoded.first(.frameNumber), let frame = UInt64(text), frame > 0,
-              containerFrameCount.map({ frame <= $0 }) ?? true else { throw NativeAnalysisError.decodingFailed("The decoded frame does not identify an original capture packet.") }
-        let packet = try applyingApplePCAPNGProcesses(packet: decoded, processes: storedAppleProcesses(database: writer.database, frame: frame))
+        guard let writer = packetWriter else { throw PacketStorageError.unavailable }
+        let processes: ApplePCAPNGFrameProcesses?
+        let fileOffset: Int64?
+        if hasPCAPNGMetadata {
+            let offsets = decoded.all(.frameFileOffset)
+            guard offsets.count == 1, let text = offsets.first, !text.isEmpty, text.utf8.count <= 19,
+                  text.utf8.allSatisfy({ (48...57).contains($0) }), let offset = Int64(text) else {
+                throw NativeAnalysisError.malformedRow("PCAPNG process attribution requires one nonnegative original file offset per decoder record.")
+            }
+            fileOffset = offset
+            processes = try storedAppleProcesses(database: writer.database, fileOffset: offset)
+        } else { processes = nil; fileOffset = nil }
+        let packet = try applyingApplePCAPNGProcesses(packet: decoded, processes: processes)
         try writer.consume(packet: packet)
+        if processes != nil, let fileOffset {
+            try writer.database.execute("UPDATE apple_processes SET matched=1 WHERE file_offset=?", values: [.integer(fileOffset)])
+        }
         if decoded.first(.frameProtocols)?.split(separator: ":").contains(where: { ["dns", "mdns", "llmnr"].contains($0) }) == true { hasDNS = true }
         try summaryAccumulator.consume(packet: packet)
         if summaryAccumulator.packetCount.isMultiple(of: 5_000) {
@@ -227,6 +244,7 @@ func parseTSharkFieldCatalog(_ output: String) -> Set<String> {
 
 func tsharkArguments(captureURL: URL, fields: [TSharkField]) -> [String] {
     var arguments = ["-n", "-r", captureURL.path, "-T", "fields", "-E", "header=n", "-E", "separator=/t", "-E", "quote=d", "-E", "occurrence=a", "-E", "aggregator=\u{1e}"]
+    if fields.contains(.frameFileOffset) { arguments.append(contentsOf: ["-o", "frame.show_file_off:TRUE"]) }
     for field in fields { arguments.append(contentsOf: ["-e", field.rawValue]) }
     return arguments
 }
