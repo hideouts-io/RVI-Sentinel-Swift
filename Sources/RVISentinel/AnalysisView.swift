@@ -64,6 +64,7 @@ struct AnalysisView: View {
     }
 
     private var captureQueue: some View {
+        // Keep identifiers on rows/actions: identifying this GroupBox breaks macOS 27 automation traversal.
         GroupBox("Capture queue (\(appState.analysisQueue.count.formatted()))") {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
@@ -101,7 +102,6 @@ struct AnalysisView: View {
             }
             .frame(maxHeight: appState.analysisQueue.count == 1 ? 110 : 220)
         }
-        .accessibilityIdentifier("analysis.queue")
     }
 
     private var analysisActionTitle: String {

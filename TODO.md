@@ -10,7 +10,9 @@ Status: the core RVI-only implementation and the focused native UI correction ar
 - [x] Run the required native Debug build/test command on the delivery tree: 123 passed, 5 expected opt-in skips, no failures.
 - [x] Run the three generated opt-in performance/cancellation tests with real TShark, including 50,000/100,000-packet indexing, filter/session-query thresholds, original-byte inspection, and both cancellation paths.
 - [x] Analyze an authorized saved physical-device capture above the previous frame/metadata ceilings, query beginning/middle/end pages and session members, and reproduce its unchanged SHA-256. All device-specific evidence remains private and outside Git.
-- [ ] Establish native file-picker acceptance of a mixed multi-file selection on the current macOS 27 host. Queue execution is covered by real TShark integration tests; accessibility selection alone does not prove picker acceptance.
+- [x] Establish native file-picker acceptance of a mixed PCAP, CAP, and PCAPNG selection on the current macOS 27 host: Choose returns to Analysis with all three distinct queue entries. Keep identifiers on queue rows/actions rather than the outer GroupBox.
+- [x] Exercise active-plus-pending GUI cancellation, Retry Incomplete with preserved queue identities, and cancellation after retry. Real TShark integration tests separately cover completed-result retention and valid/corrupt/valid continuation.
+- [ ] Finish completed-result GUI inspection and result switching with a healthy authorized driver. The current computer-use service disconnects while reading provenance details even for a tiny generated capture; this does not establish an application analysis failure. Large-file GUI decoding reached the complete independent packet count, but completed-summary acceptance remains unverified.
 - [ ] Complete the remaining M6 native latency, DNS-heavy maximum-capacity, sustained-memory/leak, and release gates. These checks do not establish unlimited hardware capacity or release readiness.
 
 ## Scope and reviewed baseline
