@@ -65,13 +65,19 @@ final class PacketPerformanceTests: XCTestCase {
             let result = try await analyzePerformanceCapture(analyzer: analyzer, captureURL: capture, deadline: .seconds(240))
             let decodeSeconds = packetDurationSeconds(decodeStart.duration(to: clock.now))
             let packets = try XCTUnwrap(result.packetAnalysis)
+            let unfiltered = PacketRecordQuery(text: "", transport: nil, protocolKind: nil, interfaceName: nil, processID: nil, direction: nil, recordIDs: nil)
             XCTAssertEqual(result.summary.packetCount, count)
             XCTAssertEqual(packets.coverage.recordCount, count)
-            XCTAssertEqual(packets.records.first?.id.frameNumber, 1)
-            XCTAssertEqual(packets.records.last?.id.frameNumber, UInt64(count))
-            XCTAssertEqual(packets.sessions.count, 1)
-            XCTAssertEqual(packets.sessions.first?.packetCount, count)
-            XCTAssertTrue(packets.records.allSatisfy { $0.process.state == .unknown })
+            XCTAssertEqual(try pagePacketRecords(result: packets, query: unfiltered, page: PacketPageRequest(offset: 0, limit: 1)).records.first?.id.frameNumber, 1)
+            XCTAssertEqual(try pagePacketRecords(result: packets, query: unfiltered, page: PacketPageRequest(offset: count - 1, limit: 1)).records.first?.id.frameNumber, UInt64(count))
+            XCTAssertEqual(packets.sessionCount, 1)
+            let initialSessionPage = try pagePacketSessions(result: packets, query: unfiltered, names: [:], page: PacketPageRequest(offset: 0, limit: 100))
+            XCTAssertEqual(initialSessionPage.sessions.first?.packetCount, count)
+            for offset in stride(from: 0, to: count, by: 1_000) {
+                let page = try pagePacketRecords(result: packets, query: unfiltered, page: PacketPageRequest(offset: offset, limit: 1_000))
+                XCTAssertTrue(page.records.allSatisfy { $0.process.state == .unknown })
+                XCTAssertEqual(page.records.count, min(1_000, count - offset))
+            }
             XCTAssertEqual(packets.artifact.source, .unknown)
             XCTAssertEqual(packets.artifact.integrity, .verified)
             XCTAssertFalse(result.coverage.activeResolutionEnabled)
@@ -79,9 +85,9 @@ final class PacketPerformanceTests: XCTestCase {
             XCTAssertEqual(try sha256(url: capture), digest)
 
             let sessionStart = clock.now
-            let rebuiltSessions = try makePacketSessions(records: packets.records, artifact: packets.artifact)
-            let sessionGenerationMilliseconds = packetDurationSeconds(sessionStart.duration(to: clock.now)) * 1_000
-            XCTAssertEqual(rebuiltSessions, packets.sessions)
+            let rereadSessions = try pagePacketSessions(result: packets, query: unfiltered, names: [:], page: PacketPageRequest(offset: 0, limit: 100))
+            let sessionReadMilliseconds = packetDurationSeconds(sessionStart.duration(to: clock.now)) * 1_000
+            XCTAssertEqual(rereadSessions.sessions, initialSessionPage.sessions)
             var filterMilliseconds: [Double] = []
             var selectionMilliseconds: [Double] = []
             var sessionQueryMilliseconds: [Double] = []
@@ -92,7 +98,7 @@ final class PacketPerformanceTests: XCTestCase {
                 let page = try pagePacketRecords(result: packets, query: query, page: PacketPageRequest(offset: 0, limit: 100))
                 filterMilliseconds.append(packetDurationSeconds(filterStart.duration(to: clock.now)) * 1_000)
                 XCTAssertEqual(page.matchingCount, search == "absent-name" ? 0 : count)
-                let chosen = packets.records[index * (count / 20)]
+                let chosen = try XCTUnwrap(pagePacketRecords(result: packets, query: unfiltered, page: PacketPageRequest(offset: index * (count / 20), limit: 1)).records.first)
                 let focused = PacketRecordQuery(text: "", transport: nil, protocolKind: nil, interfaceName: nil, processID: nil, direction: nil, recordIDs: [chosen.id])
                 let selectionStart = clock.now
                 let selected = try pagePacketRecords(result: packets, query: focused, page: PacketPageRequest(offset: 0, limit: 1))
@@ -109,7 +115,7 @@ final class PacketPerformanceTests: XCTestCase {
             let sessionQueryP95 = packetPercentile95(sessionQueryMilliseconds)
             var originalInspections: [PacketOriginalInspectionObservation] = []
             for recordIndex in [0, count / 2, count - 1] {
-                let packet = packets.records[recordIndex]
+                let packet = try XCTUnwrap(pagePacketRecords(result: packets, query: unfiltered, page: PacketPageRequest(offset: recordIndex, limit: 1)).records.first)
                 let inspectionStart = clock.now
                 let evidence = try await inspectOriginalPacket(
                     packet: packet, artifact: packets.artifact,
@@ -129,7 +135,7 @@ final class PacketPerformanceTests: XCTestCase {
             guard getrusage(RUSAGE_SELF, &usage) == 0 else { throw PacketFixtureError.resourceUsageFailed(code: errno) }
             let observation = PacketPerformanceObservation(packetCount: count, decodeSeconds: decodeSeconds,
                 filterP95Milliseconds: filterP95, selectionP95Milliseconds: selectionP95,
-                sessionGenerationMilliseconds: sessionGenerationMilliseconds, sessionQueryP95Milliseconds: sessionQueryP95,
+                sessionReadMilliseconds: sessionReadMilliseconds, sessionQueryP95Milliseconds: sessionQueryP95,
                 originalInspections: originalInspections,
                 processMaximumResidentBytes: Int64(usage.ru_maxrss), estimatedPacketBytes: packets.coverage.estimatedBytes,
                 tsharkVersion: result.coverage.tsharkVersion, operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString)
@@ -182,7 +188,7 @@ private struct PacketPerformanceObservation: Encodable {
     let decodeSeconds: Double
     let filterP95Milliseconds: Double
     let selectionP95Milliseconds: Double
-    let sessionGenerationMilliseconds: Double
+    let sessionReadMilliseconds: Double
     let sessionQueryP95Milliseconds: Double
     let originalInspections: [PacketOriginalInspectionObservation]
     let processMaximumResidentBytes: Int64

@@ -32,17 +32,26 @@ func resolveCapturedHostnames(
 ) throws -> [PacketRecordID: [CapturedHostnameAssociation]] {
     try Task.checkCancellation()
     var result = try resolveCapturedDNSNames(messages: messages, packets: packets, maximumAssociations: maximumAssociations)
-    guard !messages.isEmpty || packets.contains(where: { !$0.recordedNames.isEmpty }) else { return result }
+    try visitCapturedHostnameEvidence(messages: messages, forEachPacket: { consume in
+        for packet in packets.sorted(by: packetChronologicalOrder) { try consume(packet) }
+    }, dnsEvidence: { result[$0] ?? [] }, maximumAssociations: maximumAssociations, consume: { id, evidence in result[id] = evidence })
+    return result
+}
+
+/// Emits one frame's evidence at a time; disk consumers never build a per-capture association dictionary.
+func visitCapturedHostnameEvidence(
+    messages: [CapturedDNSMessage],
+    forEachPacket: (_ consume: (PacketRecord) throws -> Void) throws -> Void,
+    dnsEvidence: @escaping (PacketRecordID) throws -> [CapturedHostnameAssociation],
+    maximumAssociations: Int,
+    consume: @escaping (PacketRecordID, [CapturedHostnameAssociation]) throws -> Void
+) throws {
     let messagesByID = Dictionary(grouping: messages, by: \.packetID)
     var previousNames: [PacketSessionKey: [CapturedStreamNameKey: CapturedStreamName]] = [:]
-    var count = result.values.reduce(0) { $0 + $1.count }
-    let ordered = packets.sorted {
-        if $0.timestamp != $1.timestamp { return $0.timestamp < $1.timestamp }
-        return $0.id.frameNumber < $1.id.frameNumber
-    }
-    for (index, packet) in ordered.enumerated() {
-        if index.isMultiple(of: 512) { try Task.checkCancellation() }
-        var evidence = Set(result[packet.id] ?? [])
+    var count = 0
+    try forEachPacket { packet in
+        try Task.checkCancellation()
+        var evidence = Set(try dnsEvidence(packet.id))
         let key = packetSessionKey(record: packet, source: .unknown)
         if let key {
             for prior in (previousNames[key] ?? [:]).values {
@@ -77,19 +86,17 @@ func resolveCapturedHostnames(
                 evidence.formUnion(observed)
             }
         }
-        let priorCount = result[packet.id]?.count ?? 0
-        count += evidence.count - priorCount
+        count += evidence.count
         guard count <= maximumAssociations else { throw CapturedDNSError.resourceLimit("more than \(maximumAssociations) captured name records and associations") }
         if !evidence.isEmpty {
-            result[packet.id] = evidence.sorted {
+            try consume(packet.id, evidence.sorted {
                 ($0.name, $0.provenance.rawValue, $0.isInferred ? 1 : 0, $0.detail) < ($1.name, $1.provenance.rawValue, $1.isInferred ? 1 : 0, $1.detail)
-            }
+            })
         }
     }
-    return result
 }
 
-private func capturedNameProvenance(name: RecordedPacketName, packet: PacketRecord) -> EvidenceProvenance? {
+func capturedNameProvenance(name: RecordedPacketName, packet: PacketRecord) -> EvidenceProvenance? {
     switch name.field {
     case .tlsSNI: packet.protocolStack.contains("quic") ? .quicHandshake : .tlsSNI
     case .httpHost: .httpHost
@@ -203,8 +210,6 @@ func resolveCapturedDNSNames(
     packets: [PacketRecord],
     maximumAssociations: Int
 ) throws -> [PacketRecordID: [CapturedHostnameAssociation]] {
-    guard maximumAssociations > 0 else { throw CapturedDNSError.resourceLimit("association limit must be positive") }
-    guard !messages.isEmpty else { return [:] }
     var packetsByID: [PacketRecordID: PacketRecord] = [:]
     for (index, packet) in packets.enumerated() {
         if index.isMultiple(of: 512) { try Task.checkCancellation() }
@@ -212,13 +217,29 @@ func resolveCapturedDNSNames(
             throw CapturedDNSError.malformed(frame: packet.id.frameNumber, reason: "duplicate packet identity")
         }
     }
+    var result: [PacketRecordID: [CapturedHostnameAssociation]] = [:]
+    try visitCapturedDNSNames(messages: messages, packet: { packetsByID[$0] }, forEachPacket: { consume in
+        for packet in packets.sorted(by: packetChronologicalOrder) { try consume(packet) }
+    }, maximumAssociations: maximumAssociations, consume: { id, evidence in result[id] = evidence })
+    return result
+}
+
+func visitCapturedDNSNames(
+    messages: [CapturedDNSMessage],
+    packet lookupPacket: (PacketRecordID) throws -> PacketRecord?,
+    forEachPacket: (_ consume: (PacketRecord) throws -> Void) throws -> Void,
+    maximumAssociations: Int,
+    consume: @escaping (PacketRecordID, [CapturedHostnameAssociation]) throws -> Void
+) throws {
+    guard maximumAssociations > 0 else { throw CapturedDNSError.resourceLimit("association limit must be positive") }
+    guard !messages.isEmpty else { return }
     let messagesByID = Dictionary(grouping: messages, by: \.packetID)
     var timed: [DNSTimedRecord] = []
     var eventsByType: [DNSOwnerTypeKey: [DNSPosition]] = [:]
     var negativeNameEvents: [DNSOwnerKey: [DNSPosition]] = [:]
     for (index, message) in messages.enumerated() {
         if index.isMultiple(of: 512) { try Task.checkCancellation() }
-        guard let packet = packetsByID[message.packetID] else {
+        guard let packet = try lookupPacket(message.packetID) else {
             throw CapturedDNSError.malformed(frame: message.packetID.frameNumber, reason: "DNS record has no matching retained packet")
         }
         guard message.isResponse, !message.isTruncated, packet.sourcePort == 53,
@@ -242,7 +263,7 @@ func resolveCapturedDNSNames(
         var supportingPackets = [packet.id]
         if let queryFrame = message.responseToFrame {
             let queryID = PacketRecordID(artifactID: packet.id.artifactID, frameNumber: queryFrame)
-            if let queryPacket = packetsByID[queryID], let queryMessages = messagesByID[queryID], queryMessages.count == 1,
+            if let queryPacket = try lookupPacket(queryID), let queryMessages = messagesByID[queryID], queryMessages.count == 1,
                let query = queryMessages.first, !query.isResponse, query.transactionID == message.transactionID,
                query.questions == message.questions, queryPacket.sourceAddress == client, queryPacket.destinationAddress == server,
                queryPacket.sourcePort == packet.destinationPort, queryPacket.destinationPort == packet.sourcePort,
@@ -284,8 +305,8 @@ func resolveCapturedDNSNames(
     })
     var bindings: [DNSAddressKey: [DNSAddressBinding]] = [:]
     var bindingCount = 0
-    let (maximumComparisons, comparisonOverflow) = maximumAssociations.multipliedReportingOverflow(by: 64)
-    guard !comparisonOverflow else { throw CapturedDNSError.resourceLimit("association limit exceeds the supported comparison budget") }
+    let (comparisonBudget, comparisonOverflow) = maximumAssociations.multipliedReportingOverflow(by: 64)
+    let maximumComparisons = comparisonOverflow ? Int.max : comparisonBudget
     var comparisons = 0
     var identities: Set<DNSBindingIdentity> = []
     for item in validRecords where item.record.recordType == 1 || item.record.recordType == 28 {
@@ -326,13 +347,11 @@ func resolveCapturedDNSNames(
         }
     }
     let orderedBindings = bindings.mapValues { $0.sorted { $0.start < $1.start } }
-    let orderedPackets = packets.sorted { dnsPosition(packet: $0) < dnsPosition(packet: $1) }
     var cursors: [DNSAddressKey: DNSBindingCursor] = [:]
-    var result: [PacketRecordID: [CapturedHostnameAssociation]] = [:]
     var associationCount = 0
-    for (index, packet) in orderedPackets.enumerated() {
-        if index.isMultiple(of: 512) { try Task.checkCancellation() }
-        guard let source = packet.sourceAddress, let destination = packet.destinationAddress, packet.interface.state != .conflict else { continue }
+    try forEachPacket { packet in
+        try Task.checkCancellation()
+        guard let source = packet.sourceAddress, let destination = packet.destinationAddress, packet.interface.state != .conflict else { return }
         var linked: Set<CapturedHostnameAssociation> = []
         for (client, remote) in [(source, destination), (destination, source)] {
             let scope = DNSClientScope(artifactID: packet.id.artifactID, client: client, interface: packet.interface)
@@ -363,7 +382,7 @@ func resolveCapturedDNSNames(
         if !linked.isEmpty {
             associationCount += linked.count
             guard associationCount <= maximumAssociations else { throw CapturedDNSError.resourceLimit("more than \(maximumAssociations) packet-name associations") }
-            result[packet.id] = linked.sorted { left, right in
+            try consume(packet.id, linked.sorted { left, right in
                 if left.name != right.name { return left.name < right.name }
                 switch (left.address, right.address) {
                 case (nil, .some): return true
@@ -371,10 +390,9 @@ func resolveCapturedDNSNames(
                 case let (.some(leftAddress), .some(rightAddress)) where leftAddress != rightAddress: return leftAddress < rightAddress
                 default: return left.canonicalNameChain.joined(separator: ".") < right.canonicalNameChain.joined(separator: ".")
                 }
-            }
+            })
         }
     }
-    return result
 }
 
 private func dnsPosition(packet: PacketRecord) -> DNSPosition {
