@@ -151,6 +151,95 @@ final class PacketPerformanceTests: XCTestCase {
             try FileManager.default.removeItem(at: capture)
         }
     }
+
+    /// Opt in with RVI_SENTINEL_RUN_DNS_CAPACITY=1; all packets and names are generated.
+    /// RVI_SENTINEL_DNS_CAPACITY_CYCLES selects 1...5,000 cycles; omitted means 5,000.
+    /// The process RSS high-water mark excludes TShark and is not a leak measurement.
+    func testRealTSharkDNSHeavyCaptureCapacity() async throws {
+        guard ProcessInfo.processInfo.environment["RVI_SENTINEL_RUN_DNS_CAPACITY"] == "1" else {
+            throw XCTSkip("Set RVI_SENTINEL_RUN_DNS_CAPACITY=1 to run the generated DNS-heavy capacity check.")
+        }
+        guard resolveTShark() != nil else { throw XCTSkip("TShark is not installed on this host.") }
+        let cycles: Int
+        if let requested = ProcessInfo.processInfo.environment["RVI_SENTINEL_DNS_CAPACITY_CYCLES"] {
+            guard let parsed = Int(requested), (1...5_000).contains(parsed) else { throw PacketFixtureError.invalidCount }
+            cycles = parsed
+        } else {
+            cycles = 5_000
+        }
+        let framesPerCycle = 9
+        let directory = try createTemporaryTestDirectory()
+        addTeardownBlock { try FileManager.default.removeItem(at: directory) }
+        let capture = directory.appendingPathComponent("generated-dns-capacity.pcap")
+        try generatedDNSCapacityCapture(cycles: cycles).write(to: capture, options: .atomic)
+        let digest = try sha256(url: capture)
+        let clock = ContinuousClock()
+        let start = clock.now
+        let result = try await analyzePerformanceCapture(
+            analyzer: TSharkAnalyzer(decoder: BoundedDecoder()), captureURL: capture, deadline: .seconds(900)
+        )
+        let analysisSeconds = packetDurationSeconds(start.duration(to: clock.now))
+        let packets = try XCTUnwrap(result.packetAnalysis)
+        let storage = try XCTUnwrap(packets.diskStorage)
+        XCTAssertEqual(result.summary.packetCount, cycles * framesPerCycle)
+        XCTAssertEqual(packets.coverage.recordCount, cycles * framesPerCycle)
+        if cycles * framesPerCycle > 2_000 {
+            XCTAssertTrue(packets.records.isEmpty)
+            XCTAssertTrue(result.capturedHostnameAssociations?.isEmpty == true)
+        } else {
+            XCTAssertEqual(packets.records.count, cycles * framesPerCycle)
+            XCTAssertNotNil(result.capturedHostnameAssociations)
+        }
+        XCTAssertEqual(packets.artifact.id.sha256, digest)
+        XCTAssertEqual(packets.artifact.integrity, .verified)
+        XCTAssertFalse(result.coverage.activeResolutionEnabled)
+
+        let all = PacketRecordQuery(text: "", transport: nil, protocolKind: nil, interfaceName: nil,
+            processID: nil, direction: nil, recordIDs: nil)
+        for cycle in [0, cycles / 2, cycles - 1] {
+            let firstFrame = cycle * framesPerCycle + 1
+            let first = try XCTUnwrap(pagePacketRecords(result: packets, query: all,
+                page: PacketPageRequest(offset: firstFrame - 1, limit: 1)).records.first)
+            let last = try XCTUnwrap(pagePacketRecords(result: packets, query: all,
+                page: PacketPageRequest(offset: firstFrame + framesPerCycle - 2, limit: 1)).records.first)
+            XCTAssertEqual(first.id.frameNumber, UInt64(firstFrame))
+            XCTAssertEqual(last.id.frameNumber, UInt64(firstFrame + framesPerCycle - 1))
+
+            let alias = "alias-\(cycle).example"
+            let target = "target-\(cycle).example"
+            let distractor = "distractor-\(cycle).example"
+            let expected: [(Int, Set<String>)] = [
+                (2, [alias, target]), (4, []), (5, [alias, target, distractor]),
+                (7, [target]), (8, [])
+            ]
+            for (offset, names) in expected {
+                let packet = try XCTUnwrap(pagePacketRecords(result: packets, query: all,
+                    page: PacketPageRequest(offset: firstFrame + offset - 1, limit: 1)).records.first)
+                let evidence = try capturedPacketNames(result: packets, packet: packet.id, names: [:]).filter(\.isInferred)
+                XCTAssertEqual(Set(evidence.map(\.name)), names, "Incorrect DNS evidence at generated frame \(packet.id.frameNumber).")
+                XCTAssertTrue(evidence.allSatisfy { $0.provenance == .capturedDNSAnswer })
+            }
+            let search = PacketRecordQuery(text: alias, transport: nil, protocolKind: nil, interfaceName: nil,
+                processID: nil, direction: nil, recordIDs: nil)
+            let matches = try pagePacketRecords(result: packets, query: search, page: PacketPageRequest(offset: 0, limit: 100))
+            XCTAssertTrue(matches.records.contains { $0.id.frameNumber == UInt64(firstFrame + 2) })
+            XCTAssertTrue(matches.records.contains { $0.id.frameNumber == UInt64(firstFrame + 5) })
+            XCTAssertFalse(matches.records.contains { $0.id.frameNumber == UInt64(firstFrame + 7) })
+        }
+        XCTAssertEqual(try sha256(url: capture), digest)
+        let databaseSize = try XCTUnwrap((try FileManager.default.attributesOfItem(atPath: storage.files.database.path)[.size] as? NSNumber)?.int64Value)
+        var usage = rusage()
+        guard getrusage(RUSAGE_SELF, &usage) == 0 else { throw PacketFixtureError.resourceUsageFailed(code: errno) }
+        let observation = DNSCapacityObservation(packetCount: cycles * framesPerCycle,
+            dnsFrameCount: cycles * 4, analysisSeconds: analysisSeconds, databaseBytes: databaseSize,
+            processMaximumResidentBytes: Int64(usage.ru_maxrss), tsharkVersion: result.coverage.tsharkVersion)
+        let encoded = try JSONEncoder().encode(observation)
+        let attachment = XCTAttachment(data: encoded, uniformTypeIdentifier: "public.json")
+        attachment.name = "Generated DNS-heavy capacity"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        print(String(decoding: encoded, as: UTF8.self))
+    }
 }
 
 private struct PendingPerformanceAnalysis {
@@ -200,6 +289,15 @@ private struct PacketPerformanceObservation: Encodable {
 private struct PacketOriginalInspectionObservation: Encodable {
     let frameNumber: UInt64
     let elapsedMilliseconds: Double
+}
+
+private struct DNSCapacityObservation: Encodable {
+    let packetCount: Int
+    let dnsFrameCount: Int
+    let analysisSeconds: Double
+    let databaseBytes: Int64
+    let processMaximumResidentBytes: Int64
+    let tsharkVersion: String
 }
 
 private func analyzePerformanceCapture(analyzer: TSharkAnalyzer, captureURL: URL, deadline: Duration) async throws -> NativeAnalysisResult {

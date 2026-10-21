@@ -240,6 +240,64 @@ private func streamingDNSTestCapture() -> Data {
     return capture
 }
 
+/// Generated DNS and flow traffic stays within documentation address ranges and is never sent.
+/// Each cycle occupies nine frames; ten-second spacing keeps earlier TTLs out of later cycles.
+func generatedDNSCapacityCapture(cycles: Int) throws -> Data {
+    guard (1...5_000).contains(cycles) else { throw PacketFixtureError.invalidCount }
+
+    func message(transaction: UInt16, flags: UInt16, question: Data, answers: Data, answerCount: UInt16) -> Data {
+        streamingDNSBigEndian(transaction) + streamingDNSBigEndian(flags)
+            + streamingDNSBigEndian(UInt16(1)) + streamingDNSBigEndian(answerCount)
+            + streamingDNSBigEndian(UInt16(0)) + streamingDNSBigEndian(UInt16(0)) + question + answers
+    }
+
+    let client = Data([198, 51, 100, 2])
+    let server = Data([198, 51, 100, 53])
+    let oldAddress = Data([192, 0, 2, 10])
+    let newAddress = Data([192, 0, 2, 20])
+    let oldFlow = streamingDNSUDPPacket(payload: Data(), source: client, destination: oldAddress, sourcePort: 54000, destinationPort: 443)
+    let newFlow = streamingDNSUDPPacket(payload: Data(), source: client, destination: newAddress, sourcePort: 54000, destinationPort: 443)
+    var capture = Data([0xd4, 0xc3, 0xb2, 0xa1, 2, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0, 101, 0, 0, 0])
+    capture.reserveCapacity(24 + cycles * 9 * 200)
+
+    for cycle in 0..<cycles {
+        let alias = "alias-\(cycle).example"
+        let target = "target-\(cycle).example"
+        let distractor = "distractor-\(cycle).example"
+        let aliasQuestion = streamingDNSName(alias) + streamingDNSBigEndian(UInt16(1)) + streamingDNSBigEndian(UInt16(1))
+        let targetQuestion = streamingDNSName(target) + streamingDNSBigEndian(UInt16(1)) + streamingDNSBigEndian(UInt16(1))
+        let firstAnswers = streamingDNSRecord(owner: alias, type: 5, ttl: 3, value: streamingDNSName(target))
+            + streamingDNSRecord(owner: target, type: 1, ttl: 2, value: oldAddress)
+            + streamingDNSRecord(owner: distractor, type: 1, ttl: 2, value: newAddress)
+        let transaction = UInt16(cycle * 3 + 1)
+        let query = message(transaction: transaction, flags: 0x0100, question: aliasQuestion, answers: Data(), answerCount: 0)
+        let firstResponse = message(transaction: transaction, flags: 0x8180, question: aliasQuestion, answers: firstAnswers, answerCount: 3)
+        let replacement = message(transaction: transaction + 1, flags: 0x8180, question: targetQuestion,
+            answers: streamingDNSRecord(owner: target, type: 1, ttl: 2, value: newAddress), answerCount: 1)
+        let negative = message(transaction: transaction + 2, flags: 0x8183, question: aliasQuestion, answers: Data(), answerCount: 0)
+        let frames: [(packet: Data, second: UInt32, micros: UInt32)] = [
+            (streamingDNSUDPPacket(payload: query, source: client, destination: server, sourcePort: 53000, destinationPort: 53), 0, 0),
+            (streamingDNSUDPPacket(payload: firstResponse, source: server, destination: client, sourcePort: 53, destinationPort: 53000), 0, 1_000),
+            (oldFlow, 0, 2_000),
+            (streamingDNSUDPPacket(payload: replacement, source: server, destination: client, sourcePort: 53, destinationPort: 53000), 1, 0),
+            (oldFlow, 1, 1_000),
+            (newFlow, 1, 2_000),
+            (streamingDNSUDPPacket(payload: negative, source: server, destination: client, sourcePort: 53, destinationPort: 53000), 2, 0),
+            (newFlow, 2, 1_000),
+            (newFlow, 4, 0)
+        ]
+        let epoch = UInt32(1_700_000_000 + cycle * 10)
+        for frame in frames {
+            capture.append(streamingDNSLittleEndian(epoch + frame.second))
+            capture.append(streamingDNSLittleEndian(frame.micros))
+            capture.append(streamingDNSLittleEndian(UInt32(frame.packet.count)))
+            capture.append(streamingDNSLittleEndian(UInt32(frame.packet.count)))
+            capture.append(frame.packet)
+        }
+    }
+    return capture
+}
+
 private func streamingDNSName(_ name: String) -> Data {
     var encoded = Data()
     for label in name.split(separator: ".") {
