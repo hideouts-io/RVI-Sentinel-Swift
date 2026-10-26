@@ -38,6 +38,83 @@ final class PacketDiskStoreTests: XCTestCase {
         XCTAssertThrowsError(try pagePacketRecords(result: result, query: query, page: PacketPageRequest(offset: -1, limit: 100)))
     }
 
+    func testManySessionDiskQueryPerformance() throws {
+        guard ProcessInfo.processInfo.environment["RVI_SENTINEL_RUN_PACKET_PERFORMANCE"] == "1" else {
+            throw XCTSkip("Set RVI_SENTINEL_RUN_PACKET_PERFORMANCE=1 to measure generated many-session disk queries.")
+        }
+        let artifact = try diskTestArtifact()
+        let files = try PacketStorageFiles()
+        try createPacketStorage(files: files)
+        let writer = try PacketDiskWriter(files: files, artifact: artifact)
+        for frame in 1...5_000 {
+            let stream = (frame - 1) / 10
+            var values = diskTestPacket(frame: UInt64(frame), epoch: String(frame)).values
+            values[.tcpStream] = [String(stream)]
+            values[.tcpSourcePort] = [String(50_000 + stream)]
+            if frame == 5_000 { values[.frameProtocols] = ["ip:tcp:rareprobe"] }
+            try writer.consume(packet: DecodedPacket(values: values))
+        }
+        let result = try writer.finish()
+        XCTAssertEqual(result.recordCount, 5_000)
+        XCTAssertEqual(result.sessionCount, 500)
+        XCTAssertTrue(result.records.isEmpty)
+        XCTAssertTrue(result.sessions.isEmpty)
+
+        let unfiltered = diskUnfilteredQuery()
+        let first = try pagePacketSessions(result: result, query: unfiltered, names: [:], page: PacketPageRequest(offset: 0, limit: 1))
+        let last = try pagePacketSessions(result: result, query: unfiltered, names: [:], page: PacketPageRequest(offset: 499, limit: 1))
+        XCTAssertEqual(first.matchingCount, 500)
+        XCTAssertEqual(first.sessions.first?.packetCount, 10)
+        let firstSession = try XCTUnwrap(first.sessions.first)
+        XCTAssertEqual(try pagePacketSessionMembers(result: result, session: firstSession.id, page: PacketPageRequest(offset: 0, limit: 10)).records.map(\.id.frameNumber), Array(UInt64(1)...10))
+        let lastSession = try XCTUnwrap(last.sessions.first)
+        XCTAssertEqual(last.matchingCount, 500)
+        XCTAssertEqual(lastSession.packetCount, 10)
+        let rare = diskTestQuery(text: "rareprobe")
+        let packet = try pagePacketRecords(result: result, query: rare, page: PacketPageRequest(offset: 0, limit: 1))
+        XCTAssertEqual(packet.matchingCount, 1)
+        XCTAssertEqual(packet.records.first?.id.frameNumber, 5_000)
+        let matchingSession = try pagePacketSessions(result: result, query: rare, names: [:], page: PacketPageRequest(offset: 0, limit: 1))
+        XCTAssertEqual(matchingSession.matchingCount, 1)
+        XCTAssertEqual(matchingSession.sessions.first?.id, lastSession.id)
+        let members = try pagePacketSessionMembers(result: result, session: lastSession.id, page: PacketPageRequest(offset: 0, limit: 10))
+        XCTAssertEqual(members.matchingCount, 10)
+        XCTAssertEqual(members.records.map(\.id.frameNumber), Array(UInt64(4_991)...5_000))
+        XCTAssertEqual(try pagePacketRecords(result: result, query: diskTestQuery(text: "absentprobe"), page: PacketPageRequest(offset: 0, limit: 1)).matchingCount, 0)
+        XCTAssertEqual(try pagePacketSessions(result: result, query: diskTestQuery(text: "absentprobe"), names: [:], page: PacketPageRequest(offset: 0, limit: 1)).matchingCount, 0)
+
+        let clock = ContinuousClock()
+        var packetMilliseconds: [Double] = []
+        var sessionMilliseconds: [Double] = []
+        var memberMilliseconds: [Double] = []
+        for _ in 0..<20 {
+            let packetStart = clock.now
+            let packetPage = try pagePacketRecords(result: result, query: rare, page: PacketPageRequest(offset: 0, limit: 1))
+            packetMilliseconds.append(diskTestMilliseconds(packetStart.duration(to: clock.now)))
+            XCTAssertEqual(packetPage.records.first?.id.frameNumber, 5_000)
+            let sessionStart = clock.now
+            let sessionPage = try pagePacketSessions(result: result, query: rare, names: [:], page: PacketPageRequest(offset: 0, limit: 1))
+            sessionMilliseconds.append(diskTestMilliseconds(sessionStart.duration(to: clock.now)))
+            XCTAssertEqual(sessionPage.sessions.first?.id, lastSession.id)
+            let memberStart = clock.now
+            let memberPage = try pagePacketSessionMembers(result: result, session: lastSession.id, page: PacketPageRequest(offset: 0, limit: 10))
+            memberMilliseconds.append(diskTestMilliseconds(memberStart.duration(to: clock.now)))
+            XCTAssertEqual(memberPage.records.count, 10)
+        }
+        let observation = DiskManySessionObservation(recordCount: result.recordCount, sessionCount: result.sessionCount,
+            sampleCount: packetMilliseconds.count, packetFilterP95Milliseconds: diskTestP95(packetMilliseconds),
+            sessionFilterP95Milliseconds: diskTestP95(sessionMilliseconds), sessionMembersP95Milliseconds: diskTestP95(memberMilliseconds))
+        let encoded = try JSONEncoder().encode(observation)
+        let attachment = XCTAttachment(data: encoded, uniformTypeIdentifier: "public.json")
+        attachment.name = "Generated many-session disk query performance"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        print(String(decoding: encoded, as: UTF8.self))
+        XCTAssertLessThanOrEqual(observation.packetFilterP95Milliseconds, 300)
+        XCTAssertLessThanOrEqual(observation.sessionFilterP95Milliseconds, 300)
+        XCTAssertLessThanOrEqual(observation.sessionMembersP95Milliseconds, 300)
+    }
+
     func testDiskOrderRetainsExactEpochsAndSessionExtremaFromOutOfOrderInput() throws {
         let artifact = try diskTestArtifact()
         let files = try PacketStorageFiles()
@@ -231,4 +308,22 @@ private func createAndReleaseDiskTestStore() throws -> URL {
     let files = try PacketStorageFiles()
     try createPacketStorage(files: files)
     return files.directory
+}
+
+private struct DiskManySessionObservation: Encodable {
+    let recordCount: Int
+    let sessionCount: Int
+    let sampleCount: Int
+    let packetFilterP95Milliseconds: Double
+    let sessionFilterP95Milliseconds: Double
+    let sessionMembersP95Milliseconds: Double
+}
+
+private func diskTestMilliseconds(_ duration: Duration) -> Double {
+    Double(duration.components.seconds) * 1_000 + Double(duration.components.attoseconds) / 1_000_000_000_000_000
+}
+
+private func diskTestP95(_ values: [Double]) -> Double {
+    let ordered = values.sorted()
+    return ordered[Int(ceil(Double(ordered.count) * 0.95)) - 1]
 }
