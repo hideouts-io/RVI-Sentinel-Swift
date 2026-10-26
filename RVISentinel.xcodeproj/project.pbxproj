@@ -7,6 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D50000000000000000000001 /* StoredDNSRecords.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000001 /* StoredDNSRecords.swift */; };
+		D50000000000000000000100 /* StoredDNSEvidenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000100 /* StoredDNSEvidenceTests.swift */; };
+		D30000000000000000000001 /* ApplePCAPNGMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000001 /* ApplePCAPNGMetadata.swift */; };
+		D30000000000000000000002 /* PacketDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000002 /* PacketDatabase.swift */; };
+		D30000000000000000000003 /* PacketDiskStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000003 /* PacketDiskStore.swift */; };
+		D30000000000000000000004 /* PacketDiskQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000004 /* PacketDiskQueries.swift */; };
+		D30000000000000000000005 /* StoredHostnameEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000005 /* StoredHostnameEvidence.swift */; };
+		D30000000000000000000064 /* PacketDiskStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000064 /* PacketDiskStoreTests.swift */; };
+		D30000000000000000000065 /* StreamingDNSIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000065 /* StreamingDNSIntegrationTests.swift */; };
+		D30000000000000000000066 /* AnalysisQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000066 /* AnalysisQueueTests.swift */; };
 		004B0A0BD2E818931556EDD1 /* BaselineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DEB03A195ACB6418E32EB38 /* BaselineView.swift */; };
 		050374627FEFB8B20ECF57F3 /* PacketIntegrationFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910F542B89AB157FF4FFDF96 /* PacketIntegrationFixture.swift */; };
 		053BCFA2AD482B77380749E1 /* CurrentDNSLookupIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 051BCFA2AD482B77380749E1 /* CurrentDNSLookupIntegrationTests.swift */; };
@@ -84,6 +94,16 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D60000000000000000000001 /* StoredDNSRecords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredDNSRecords.swift; sourceTree = "<group>"; };
+		D60000000000000000000100 /* StoredDNSEvidenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredDNSEvidenceTests.swift; sourceTree = "<group>"; };
+		D40000000000000000000001 /* ApplePCAPNGMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplePCAPNGMetadata.swift; sourceTree = "<group>"; };
+		D40000000000000000000002 /* PacketDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketDatabase.swift; sourceTree = "<group>"; };
+		D40000000000000000000003 /* PacketDiskStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketDiskStore.swift; sourceTree = "<group>"; };
+		D40000000000000000000004 /* PacketDiskQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketDiskQueries.swift; sourceTree = "<group>"; };
+		D40000000000000000000005 /* StoredHostnameEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredHostnameEvidence.swift; sourceTree = "<group>"; };
+		D40000000000000000000064 /* PacketDiskStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketDiskStoreTests.swift; sourceTree = "<group>"; };
+		D40000000000000000000065 /* StreamingDNSIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingDNSIntegrationTests.swift; sourceTree = "<group>"; };
+		D40000000000000000000066 /* AnalysisQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisQueueTests.swift; sourceTree = "<group>"; };
 		051BCFA2AD482B77380749E1 /* CurrentDNSLookupIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentDNSLookupIntegrationTests.swift; sourceTree = "<group>"; };
 		051BCFA2AD482B77380749E2 /* CurrentDNSLoopbackResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentDNSLoopbackResolver.swift; sourceTree = "<group>"; };
 		09A6684D4C368C2786CAB49A /* PacketEvidenceIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketEvidenceIntegrationTests.swift; sourceTree = "<group>"; };
@@ -169,6 +189,12 @@
 				7C68087EA88289F045E7D5C0 /* AnalysisModels.swift */,
 				C5496AC88ADF148248FD9F71 /* AnalysisView.swift */,
 				33314A0C217F166BC5BD5CF4 /* AppState.swift */,
+				D60000000000000000000001 /* StoredDNSRecords.swift */,
+				D40000000000000000000001 /* ApplePCAPNGMetadata.swift */,
+				D40000000000000000000002 /* PacketDatabase.swift */,
+				D40000000000000000000003 /* PacketDiskStore.swift */,
+				D40000000000000000000004 /* PacketDiskQueries.swift */,
+				D40000000000000000000005 /* StoredHostnameEvidence.swift */,
 				A5AFC1E46F220EB7262B187E /* BaselineModels.swift */,
 				BAE97DDC9419521E9CC87F60 /* BaselineStore.swift */,
 				3DEB03A195ACB6418E32EB38 /* BaselineView.swift */,
@@ -241,6 +267,10 @@
 			children = (
 				C81CA75A7513D946EC2B4C88 /* AnalysisFixture.swift */,
 				ABB4452EBE4B154DC78741F0 /* AnalyzerPacketIntegrationTests.swift */,
+				D60000000000000000000100 /* StoredDNSEvidenceTests.swift */,
+				D40000000000000000000064 /* PacketDiskStoreTests.swift */,
+				D40000000000000000000065 /* StreamingDNSIntegrationTests.swift */,
+				D40000000000000000000066 /* AnalysisQueueTests.swift */,
 				B7F086A701D6A26DE8786A5F /* AppStateTests.swift */,
 				5B196F7CFB08E5BC4E7F44AA /* BaselineStoreTests.swift */,
 				43766FF711503F358A1041EE /* BoundedDecoderTests.swift */,
@@ -368,6 +398,12 @@
 				0CF7650CC9A6E9CDE7C667C2 /* AnalysisModels.swift in Sources */,
 				98C68633055049950ECE2A58 /* AnalysisView.swift in Sources */,
 				B01433A865EAD022BDD950B9 /* AppState.swift in Sources */,
+				D50000000000000000000001 /* StoredDNSRecords.swift in Sources */,
+				D30000000000000000000001 /* ApplePCAPNGMetadata.swift in Sources */,
+				D30000000000000000000002 /* PacketDatabase.swift in Sources */,
+				D30000000000000000000003 /* PacketDiskStore.swift in Sources */,
+				D30000000000000000000004 /* PacketDiskQueries.swift in Sources */,
+				D30000000000000000000005 /* StoredHostnameEvidence.swift in Sources */,
 				F446426C19860A52350883E0 /* BaselineModels.swift in Sources */,
 				1ABA945D949786BB2D3412F7 /* BaselineStore.swift in Sources */,
 				004B0A0BD2E818931556EDD1 /* BaselineView.swift in Sources */,
@@ -415,6 +451,10 @@
 			files = (
 				7C64EB18183B041060E41FCC /* AnalysisFixture.swift in Sources */,
 				0AEF17C85BF94E6FBB260B3A /* AnalyzerPacketIntegrationTests.swift in Sources */,
+				D50000000000000000000100 /* StoredDNSEvidenceTests.swift in Sources */,
+				D30000000000000000000064 /* PacketDiskStoreTests.swift in Sources */,
+				D30000000000000000000065 /* StreamingDNSIntegrationTests.swift in Sources */,
+				D30000000000000000000066 /* AnalysisQueueTests.swift in Sources */,
 				1A5535A262E9F466E8914B02 /* AppStateTests.swift in Sources */,
 				A01454E269EF7723B3DDDC24 /* BaselineStoreTests.swift in Sources */,
 				331AE979BF23D35F41459A25 /* BoundedDecoderTests.swift in Sources */,

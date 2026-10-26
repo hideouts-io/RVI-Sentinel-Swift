@@ -150,10 +150,7 @@ struct PacketRawBytesView: View {
                 let evidence = try await inspectOriginalPacket(
                     packet: selectedPacket, artifact: selectedArtifact, fields: fields,
                     tsharkURL: tsharkURL, decoder: ownedDecoder,
-                    limits: OriginalPacketLimits(
-                        maximumJSONBytes: 8_388_608, maximumFrameBytes: 262_144, maximumRanges: 2_048,
-                        maximumDepth: 48, maximumCaptureBytes: 4_294_967_296, timeout: .seconds(30)
-                    )
+                    limits: try OriginalPacketLimits.forCapture(at: selectedArtifact.id.sourceURL)
                 )
                 try Task.checkCancellation()
                 guard operationID == token else { return }
