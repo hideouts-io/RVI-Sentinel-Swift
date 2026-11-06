@@ -20,20 +20,24 @@ struct AnalysisView: View {
                     .disabled(appState.isAnalyzing)
                     .accessibilityHint(appState.isAnalyzing
                         ? "A local analysis is already running."
-                        : "Chooses an authorized PCAP, PCAPNG, or CAP file for local analysis.")
+                        : "Chooses one or more authorized PCAP, PCAPNG, or CAP files and replaces the current queue. Analysis starts only when requested.")
                     .accessibilityIdentifier(AccessibilityIdentifier.chooseAnalysisCapture.rawValue)
                 if appState.isAnalyzing {
-                    Button("Cancel", role: .destructive) { Task { await appState.cancelAnalysis() } }
+                    Button("Cancel Queue", role: .destructive) { Task { await appState.cancelAnalysis() } }
+                        .accessibilityHint("Stops the active analysis and cancels all pending captures. Completed results remain available.")
                         .accessibilityIdentifier(AccessibilityIdentifier.cancelAnalysis.rawValue)
                 }
-                Button("Analyze Locally") { Task { await appState.startAnalysis() } }
+                Button(analysisActionTitle) { Task { await appState.startAnalysis() } }
                     .buttonStyle(.borderedProminent)
                     .disabled(appState.analysisCaptureURL == nil || appState.isAnalyzing)
                     .accessibilityHint(startAnalysisHint)
                     .accessibilityIdentifier(AccessibilityIdentifier.startAnalysis.rawValue)
             }
+            if !appState.analysisQueue.isEmpty {
+                captureQueue
+            }
             if appState.importedCaptureSource != .liveDeviceRVI {
-                Picker("Import origin", selection: $appState.importedCaptureSource) {
+                Picker(appState.analysisQueue.count > 1 ? "Import origin for queued captures" : "Import origin", selection: $appState.importedCaptureSource) {
                     Text("Unknown origin").tag(PacketSourceProvenance.unknown)
                     Text("I identify this as device RVI").tag(PacketSourceProvenance.userDeclaredRVI)
                 }.disabled(appState.isAnalyzing || appState.analysisResult != nil)
@@ -50,13 +54,64 @@ struct AnalysisView: View {
                 }
                 .pickerStyle(.segmented)
                 .accessibilityIdentifier(AccessibilityIdentifier.analysisResultPicker.rawValue)
-                resultView(result: result)
+                resultView(result: result).id(appState.selectedAnalysisID)
             } else {
                 ContentUnavailableView("No analysis results", systemImage: "doc.text.magnifyingglass", description: Text("Choose an authorized capture. Analysis uses recorded metadata and captured hostname evidence. Current reverse DNS is a separate action."))
             }
         }
         .padding(28)
         .navigationTitle("Analysis")
+    }
+
+    private var captureQueue: some View {
+        // Keep identifiers on rows/actions: identifying this GroupBox breaks macOS 27 automation traversal.
+        GroupBox("Capture queue (\(appState.analysisQueue.count.formatted()))") {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(appState.analysisQueue) { item in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                if item.status == .analyzing { ProgressView().controlSize(.small) }
+                                Text(item.captureURL.lastPathComponent).font(.headline).lineLimit(1).truncationMode(.middle)
+                                Spacer()
+                                Text(item.status.rawValue)
+                                    .accessibilityIdentifier("analysis.queue.status.\(item.id.uuidString)")
+                                if item.result != nil {
+                                    Button(appState.selectedAnalysisID == item.id ? "Viewing Results" : "View Results") {
+                                        appState.selectAnalysisResult(id: item.id)
+                                    }
+                                    .disabled(appState.selectedAnalysisID == item.id)
+                                    .accessibilityIdentifier("analysis.queue.select.\(item.id.uuidString)")
+                                }
+                            }
+                            Text(item.captureURL.path).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                            Text(item.error ?? item.progress.status)
+                                .font(.caption)
+                                .foregroundStyle(item.error == nil ? Color.secondary : Color.red)
+                                .textSelection(.enabled)
+                                .accessibilityIdentifier("analysis.queue.progress.\(item.id.uuidString)")
+                            if item.progress.decodedPackets > 0 {
+                                Text("\(item.progress.decodedPackets.formatted()) packets").font(.caption.monospacedDigit())
+                            }
+                        }
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("analysis.queue.capture.\(item.id.uuidString)")
+                    }
+                }
+                .padding(6)
+            }
+            .frame(maxHeight: appState.analysisQueue.count == 1 ? 110 : 220)
+        }
+    }
+
+    private var analysisActionTitle: String {
+        if appState.analysisQueue.contains(where: { $0.status == .queued }) {
+            return appState.analysisQueue.count > 1 ? "Analyze Queue" : "Analyze Locally"
+        }
+        if appState.analysisQueue.contains(where: { $0.status == .failed || $0.status == .cancelled }) {
+            return "Retry Incomplete"
+        }
+        return appState.analysisQueue.count > 1 ? "Reanalyze Selected" : "Analyze Locally"
     }
 
     private var startAnalysisHint: String {
@@ -66,7 +121,10 @@ struct AnalysisView: View {
         if appState.analysisCaptureURL == nil {
             return "Choose an authorized packet capture before analyzing."
         }
-        return "Decodes the selected capture locally without active hostname lookups."
+        if appState.analysisQueue.contains(where: { $0.status == .failed || $0.status == .cancelled }) {
+            return "Retries failed and cancelled captures in order, retaining completed results. No active hostname lookups are performed."
+        }
+        return "Decodes queued captures in order, or reanalyzes the selected completed capture, without active hostname lookups."
     }
 
     @ViewBuilder
@@ -124,21 +182,21 @@ struct AnalysisSummaryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 190))], spacing: 12) {
-                    metric("Packets", result.summary.packetCount.formatted())
-                    metric("Captured bytes", ByteCountFormatter.string(fromByteCount: result.summary.byteCount, countStyle: .file))
-                    metric("Endpoints", result.endpoints.count.formatted())
-                    metric("Hostname evidence", result.hostnames.count.formatted())
-                    metric("Protocols", result.protocols.count.formatted())
-                    metric("Interfaces in metadata", result.summary.interfaces.isEmpty ? "Not reported" : result.summary.interfaces.joined(separator: ", "))
+                    metric("Packets", result.summary.packetCount.formatted(), "analysis.summary.packets")
+                    metric("Captured bytes", ByteCountFormatter.string(fromByteCount: result.summary.byteCount, countStyle: .file), "analysis.summary.bytes")
+                    metric("Endpoints", result.endpoints.count.formatted(), "analysis.summary.endpoints")
+                    metric("Hostname evidence", result.hostnames.count.formatted(), "analysis.summary.hostnames")
+                    metric("Protocols", result.protocols.count.formatted(), "analysis.summary.protocols")
+                    metric("Interfaces in metadata", result.summary.interfaces.isEmpty ? "Not reported" : result.summary.interfaces.joined(separator: ", "), "analysis.summary.interfaces")
                 }
                 GroupBox("Evidence provenance") {
                     Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 7) {
-                        GridRow { Text("Capture").foregroundStyle(.secondary); Text(result.summary.captureURL.path) }
-                        GridRow { Text("SHA-256").foregroundStyle(.secondary); Text(result.summary.captureSHA256).font(.caption.monospaced()) }
-                        GridRow { Text("First packet").foregroundStyle(.secondary); Text(result.summary.firstPacket?.formatted() ?? "Unavailable") }
-                        GridRow { Text("Last packet").foregroundStyle(.secondary); Text(result.summary.lastPacket?.formatted() ?? "Unavailable") }
-                        GridRow { Text("Decoder").foregroundStyle(.secondary); Text(result.coverage.tsharkVersion) }
-                        GridRow { Text("Active resolution").foregroundStyle(.secondary); Text(result.coverage.activeResolutionEnabled ? "Enabled for IPv4 and IPv6" : "Disabled") }
+                        GridRow { Text("Capture").foregroundStyle(.secondary); Text(result.summary.captureURL.path).accessibilityIdentifier("analysis.summary.capture") }
+                        GridRow { Text("SHA-256").foregroundStyle(.secondary); Text(result.summary.captureSHA256).font(.caption.monospaced()).accessibilityIdentifier("analysis.summary.sha256") }
+                        GridRow { Text("First packet").foregroundStyle(.secondary); Text(result.summary.firstPacket?.formatted() ?? "Unavailable").accessibilityIdentifier("analysis.summary.first-packet") }
+                        GridRow { Text("Last packet").foregroundStyle(.secondary); Text(result.summary.lastPacket?.formatted() ?? "Unavailable").accessibilityIdentifier("analysis.summary.last-packet") }
+                        GridRow { Text("Decoder").foregroundStyle(.secondary); Text(result.coverage.tsharkVersion).accessibilityIdentifier("analysis.summary.decoder") }
+                        GridRow { Text("Active resolution").foregroundStyle(.secondary); Text(result.coverage.activeResolutionEnabled ? "Enabled for IPv4 and IPv6" : "Disabled").accessibilityIdentifier("analysis.summary.active-resolution") }
                     }
                     .textSelection(.enabled)
                     .padding(.vertical, 6)
@@ -148,10 +206,10 @@ struct AnalysisSummaryView: View {
         }
     }
 
-    private func metric(_ title: String, _ value: String) -> some View {
+    private func metric(_ title: String, _ value: String, _ identifier: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.title3.bold()).lineLimit(2)
+            Text(value).font(.title3.bold()).lineLimit(2).accessibilityIdentifier(identifier)
         }
         .frame(maxWidth: .infinity, minHeight: 65, alignment: .leading)
         .padding()

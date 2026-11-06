@@ -78,6 +78,168 @@ func readCapturedDNSRecords(
     return try decodeCapturedDNSRecords(data: response.standardOutput, artifactID: artifactID, limits: limits)
 }
 
+/// Streams one passive structured DNS pass with backpressure. Limits apply to each packet,
+/// not the capture's total output. Delivered batches are provisional until the pass succeeds.
+func streamCapturedDNSRecords(
+    artifactID: PacketArtifactID,
+    tsharkURL: URL,
+    decoder: BoundedDecoder,
+    timeout: Duration,
+    consume: @escaping @Sendable ([CapturedDNSMessage]) async throws -> Void
+) async throws {
+    let limits = CapturedDNSLimits.standard
+    let stream = try CapturedDNSStream(artifactID: artifactID, limits: limits, consume: consume)
+    _ = try await decoder.streamLines(
+        executableURL: tsharkURL,
+        arguments: ["-n", "-l", "-r", artifactID.sourceURL.path, "-Y", "dns || mdns || llmnr", "-T", "json", "--no-duplicate-keys", "-J", "frame dns mdns llmnr"],
+        limits: BoundedDecoderLineLimits(
+            process: BoundedDecoderLimits(maximumOutputBytes: Int.max, maximumErrorBytes: 4_096, timeout: timeout),
+            maximumLineBytes: limits.maximumJSONBytes,
+            maximumLines: Int.max
+        ),
+        consume: { line in try await stream.append(line: line) }
+    )
+    try await stream.finish()
+}
+
+/// Frames a top-level JSON array a byte at a time, retaining only one bounded `[packet]`.
+/// Full JSON syntax and DNS field validation remain the typed decoder's responsibility.
+struct CapturedDNSJSONFramer: Sendable {
+    private enum Phase { case start, firstObjectOrEnd, object, separatorOrEnd, nextObject, finished }
+
+    private let maximumJSONBytes: Int
+    private let maximumDepth: Int
+    private var phase: Phase = .start
+    private var packet = Data()
+    private var closingDelimiters: [UInt8] = []
+    private var quoted = false
+    private var escaped = false
+
+    init(maximumJSONBytes: Int, maximumDepth: Int) throws {
+        guard maximumJSONBytes > 0, maximumDepth > 0 else {
+            throw CapturedDNSError.resourceLimit("per-packet JSON byte and depth limits must be positive")
+        }
+        self.maximumJSONBytes = maximumJSONBytes
+        self.maximumDepth = maximumDepth
+    }
+
+    mutating func append(byte: UInt8) throws -> Data? {
+        if case .object = phase { return try appendObject(byte: byte) }
+        if byte == 32 || byte == 9 || byte == 10 || byte == 13 { return nil }
+        switch phase {
+        case .start:
+            guard byte == 91 else { throw malformed("expected a top-level JSON array") }
+            phase = .firstObjectOrEnd
+        case .firstObjectOrEnd:
+            if byte == 93 { phase = .finished }
+            else { return try beginObject(byte: byte) }
+        case .nextObject:
+            return try beginObject(byte: byte)
+        case .separatorOrEnd:
+            if byte == 44 { phase = .nextObject }
+            else if byte == 93 { phase = .finished }
+            else { throw malformed("expected a comma or the end of the packet array") }
+        case .finished:
+            throw malformed("trailing content after the packet array")
+        case .object:
+            throw malformed("unexpected packet framing state")
+        }
+        return nil
+    }
+
+    func finish() throws {
+        guard case .finished = phase else { throw malformed("truncated structured DNS JSON array or packet object") }
+    }
+
+    private mutating func beginObject(byte: UInt8) throws -> Data? {
+        guard byte == 123 else { throw malformed("expected a packet object in the JSON array") }
+        packet = Data([91])
+        phase = .object
+        return try appendObject(byte: byte)
+    }
+
+    private mutating func appendObject(byte: UInt8) throws -> Data? {
+        // Reserve one byte for the closing array bracket supplied to the typed decoder.
+        guard packet.count < maximumJSONBytes - 1 else {
+            throw CapturedDNSError.resourceLimit("one DNS packet exceeds \(maximumJSONBytes) JSON bytes")
+        }
+        packet.append(byte)
+        if quoted {
+            guard byte >= 32 else { throw malformed("unescaped control character in a JSON string") }
+            if escaped { escaped = false }
+            else if byte == 92 { escaped = true }
+            else if byte == 34 { quoted = false }
+        } else if byte == 34 {
+            quoted = true
+        } else if byte == 123 || byte == 91 {
+            // Include the enclosing top-level array in the existing depth budget.
+            guard closingDelimiters.count < maximumDepth - 1 else {
+                throw CapturedDNSError.resourceLimit("JSON nesting exceeds \(maximumDepth)")
+            }
+            closingDelimiters.append(byte == 123 ? 125 : 93)
+        } else if byte == 125 || byte == 93 {
+            guard closingDelimiters.last == byte else { throw malformed("mismatched JSON object or array delimiter") }
+            closingDelimiters.removeLast()
+            if closingDelimiters.isEmpty {
+                packet.append(93)
+                let result = packet
+                packet = Data()
+                phase = .separatorOrEnd
+                return result
+            }
+        }
+        return nil
+    }
+
+    private func malformed(_ reason: String) -> CapturedDNSError {
+        .malformed(frame: nil, reason: reason)
+    }
+}
+
+/// Owns the incremental parser across the decoder's Sendable line callback.
+private actor CapturedDNSStream {
+    private let artifactID: PacketArtifactID
+    private let limits: CapturedDNSLimits
+    private let consume: @Sendable ([CapturedDNSMessage]) async throws -> Void
+    private var framer: CapturedDNSJSONFramer
+    private var lastFrameNumber: UInt64 = 0
+
+    init(
+        artifactID: PacketArtifactID,
+        limits: CapturedDNSLimits,
+        consume: @escaping @Sendable ([CapturedDNSMessage]) async throws -> Void
+    ) throws {
+        self.artifactID = artifactID
+        self.limits = limits
+        self.consume = consume
+        framer = try CapturedDNSJSONFramer(maximumJSONBytes: limits.maximumJSONBytes, maximumDepth: limits.maximumDepth)
+    }
+
+    func append(line: String) async throws {
+        for (index, byte) in line.utf8.enumerated() {
+            if index.isMultiple(of: 65_536) { try Task.checkCancellation() }
+            if let packet = try framer.append(byte: byte) {
+                let messages = try decodeCapturedDNSRecords(data: packet, artifactID: artifactID, limits: limits)
+                guard let frame = messages.first?.packetID.frameNumber, frame > lastFrameNumber else {
+                    throw CapturedDNSError.malformed(frame: messages.first?.packetID.frameNumber, reason: "streamed frame numbers must be strictly increasing and unique")
+                }
+                lastFrameNumber = frame
+                try Task.checkCancellation()
+                try await consume(messages)
+                try Task.checkCancellation()
+            }
+        }
+        // streamLines removes line terminators. Restore their JSON meaning so split
+        // strings cannot silently become valid by losing an unescaped newline.
+        _ = try framer.append(byte: 10)
+    }
+
+    func finish() throws {
+        try Task.checkCancellation()
+        try framer.finish()
+    }
+}
+
 /// Reads only consumed DNS answer subtrees. Owners and RDATA are never paired from flattened arrays.
 func decodeCapturedDNSRecords(
     data: Data,

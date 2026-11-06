@@ -26,8 +26,14 @@ struct OriginalPacketLimits: Sendable {
 
     static let standard = OriginalPacketLimits(
         maximumJSONBytes: 8_388_608, maximumFrameBytes: 262_144, maximumRanges: 2_048, maximumDepth: 48,
-        maximumCaptureBytes: 4_294_967_296, timeout: .seconds(30)
+        maximumCaptureBytes: Int64.max, timeout: .seconds(30)
     )
+
+    static func forCapture(at url: URL) throws -> OriginalPacketLimits {
+        OriginalPacketLimits(maximumJSONBytes: standard.maximumJSONBytes, maximumFrameBytes: standard.maximumFrameBytes,
+            maximumRanges: standard.maximumRanges, maximumDepth: standard.maximumDepth, maximumCaptureBytes: Int64.max,
+            timeout: try captureWorkloadTimeout(url: url, minimum: standard.timeout))
+    }
 }
 
 enum OriginalPacketError: LocalizedError {

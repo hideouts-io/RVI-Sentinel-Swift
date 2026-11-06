@@ -9,6 +9,9 @@ struct PacketSessionPage: Sendable {
 /// Session search uses only recorded context and separately validated captured-name links.
 func pagePacketSessions(result: PacketAnalysisResult, query: PacketRecordQuery, names: [PacketRecordID: [CapturedHostnameAssociation]], page: PacketPageRequest) throws -> PacketSessionPage {
     guard page.offset >= 0, (1...1_000).contains(page.limit) else { throw PacketDomainError.invalidPage }
+    if let storage = result.diskStorage {
+        return try pageStoredSessions(storage: storage, artifact: result.artifact.id, query: query, page: page)
+    }
     let tokens = query.text.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
     var packets: [PacketRecordID: PacketRecord] = [:]
     for record in result.records {
@@ -48,6 +51,20 @@ func pagePacketSessions(result: PacketAnalysisResult, query: PacketRecordQuery, 
     }
     let (next, overflow) = page.offset.addingReportingOverflow(rows.count)
     return PacketSessionPage(sessions: rows, matchingCount: count, nextOffset: !overflow && next < count ? next : nil)
+}
+
+func pagePacketSessionMembers(result: PacketAnalysisResult, session: PacketSessionKey, page: PacketPageRequest) throws -> PacketPage {
+    guard session.artifactID == result.artifact.id else { throw PacketDomainError.artifactMismatch }
+    if let storage = result.diskStorage { return try pageStoredSessionMembers(storage: storage, session: session, page: page) }
+    guard let group = result.sessions.first(where: { $0.id == session }) else { throw PacketStorageError.unavailable }
+    let query = PacketRecordQuery(text: "", transport: nil, protocolKind: nil, interfaceName: nil, processID: nil, direction: nil, recordIDs: Set(group.packetIDs))
+    return try pagePacketRecords(result: result, query: query, page: page)
+}
+
+func capturedPacketNames(result: PacketAnalysisResult, packet: PacketRecordID, names: [PacketRecordID: [CapturedHostnameAssociation]]) throws -> [CapturedHostnameAssociation] {
+    guard packet.artifactID == result.artifact.id else { throw PacketDomainError.artifactMismatch }
+    guard let storage = result.diskStorage else { return names[packet] ?? [] }
+    return try withPacketDatabase(files: storage.files, access: .read) { try storedCapturedNames(database: $0, id: packet) }
 }
 
 func packetEndpointLabel(address: PacketIPAddress?, port: UInt16?) -> String {

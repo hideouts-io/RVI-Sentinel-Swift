@@ -238,7 +238,7 @@ The temporary RVI is cleaned up after success, cancellation, or failure. If the 
 
 ## Analyze an Existing Capture
 
-Open **Analysis**, choose an authorized `.pcap`, `.pcapng`, or `.cap` file, and select **Analyze Locally**. The source file is read-only: analysis does not rewrite the capture or silently update a baseline.
+Open **Analysis** and choose one or more authorized `.pcap`, `.pcapng`, or `.cap` files. Select **Analyze Locally** for one file or **Analyze Queue** for several. Captures run one at a time, with separate progress, results, and errors. **View Results** switches between completed captures; **Retry Incomplete** retries failed or cancelled items while retaining completed results. **Cancel Queue** stops the active capture and cancels pending items. Choosing files replaces the queue but does not start analysis. Source files remain read-only: analysis does not rewrite captures or silently update a baseline.
 
 The result workspace contains:
 
@@ -301,7 +301,7 @@ Structured captured DNS records preserve owner/type/value/TTL/frame relationship
 
 Recorded process and effective-process labels are capture metadata, not independently verified device identity. Imported origin starts unknown; a user declaration of RVI is distinct from Sentinel's completed-device workflow. Missing labels, PID 0, unsupported decoder fields, and conflicting metadata remain explicit. Decoded epoch values retain nanosecond precision without a floating-point conversion; printed fractional digits do not establish the container's declared timestamp resolution. Local display does not adjust capture time.
 
-Analysis supports up to 200,000 records and 256 MiB of estimated record storage, with a 4 GiB original-file hashing ceiling and explicit decoder/output/deadline limits. These are failure ceilings, not a claim of tested capacity. Generated 50,000/100,000-packet performance and physical/native validation are tracked in [TODO.md](TODO.md). The original file is read in place and checked before/after analysis; moving or changing it requires reimport. Existing report schema and baseline contracts remain unchanged, without packet payload export.
+Analysis has no fixed total file-size, packet-count, retained-metadata, or queue-length ceiling. Packet records, sessions, original-container process facts, DNS history, and hostname relationships use private temporary SQLite storage; timelines and session members load in pages. Repeated stream-name observations are stored once and linked when requested. Completed queued results keep their indexes until the queue is replaced or released. Disk space, processing time, platform integer ranges, and memory for aggregate inventories or a selected packet's evidence still apply. Per-row and per-object parser bounds, cancellation, explicit storage failures, and file-size-proportional deadlines remain in place. This is not a claim of unlimited capacity or constant memory for every workload. Generated and physical/native validation are tracked in [TODO.md](TODO.md). Original files are read in place and checked before/after analysis; moving or changing one requires reimport. Existing report schema and baseline contracts remain unchanged, without packet payload export.
 
 A missing PTR record means only that the resolver returned no reverse name. A returned PTR name can be generic, shared, stale, or controlled by a provider; it is an attribution hint, not proof of ownership or intent.
 

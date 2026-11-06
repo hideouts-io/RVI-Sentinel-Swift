@@ -190,6 +190,41 @@ struct PacketAnalysisResult: Codable, Equatable, Sendable {
     let records: [PacketRecord]
     let sessions: [PacketSession]
     let coverage: PacketIndexCoverage
+    let diskStorage: PacketDiskStorage?
+
+    var recordCount: Int { coverage.recordCount }
+    var sessionCount: Int { diskStorage?.sessionCount ?? sessions.count }
+
+    init(artifact: PacketCaptureArtifact, records: [PacketRecord], sessions: [PacketSession], coverage: PacketIndexCoverage) {
+        self.init(artifact: artifact, records: records, sessions: sessions, coverage: coverage, diskStorage: nil)
+    }
+
+    init(artifact: PacketCaptureArtifact, records: [PacketRecord], sessions: [PacketSession], coverage: PacketIndexCoverage, diskStorage: PacketDiskStorage?) {
+        self.artifact = artifact
+        self.records = records
+        self.sessions = sessions
+        self.coverage = coverage
+        self.diskStorage = diskStorage
+    }
+
+    private enum CodingKeys: String, CodingKey { case artifact, records, sessions, coverage }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(artifact: try container.decode(PacketCaptureArtifact.self, forKey: .artifact),
+                  records: try container.decode([PacketRecord].self, forKey: .records),
+                  sessions: try container.decode([PacketSession].self, forKey: .sessions),
+                  coverage: try container.decode(PacketIndexCoverage.self, forKey: .coverage))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        guard diskStorage == nil || recordCount == records.count else { throw PacketStorageError.serialization }
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(artifact, forKey: .artifact)
+        try container.encode(records, forKey: .records)
+        try container.encode(sessions, forKey: .sessions)
+        try container.encode(coverage, forKey: .coverage)
+    }
 }
 
 enum PacketDomainError: LocalizedError, Equatable {

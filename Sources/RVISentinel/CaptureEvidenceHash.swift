@@ -37,11 +37,15 @@ func hashCaptureBytes(url: URL, maximumBytes: Int64, deadline: ContinuousClock.I
         while true {
             try Task.checkCancellation()
             guard ContinuousClock().now < deadline else { throw CaptureEvidenceError.deadlineExceeded }
-            guard let chunk = try handle.read(upToCount: 1_048_576), !chunk.isEmpty else { break }
-            let (next, overflow) = total.addingReportingOverflow(Int64(chunk.count))
-            guard !overflow, next <= maximumBytes else { throw CaptureEvidenceError.sizeLimit(maximumBytes) }
-            total = next
-            digest.update(data: chunk)
+            let consumed = try autoreleasepool {
+                guard let chunk = try handle.read(upToCount: 1_048_576), !chunk.isEmpty else { return 0 }
+                let (next, overflow) = total.addingReportingOverflow(Int64(chunk.count))
+                guard !overflow, next <= maximumBytes else { throw CaptureEvidenceError.sizeLimit(maximumBytes) }
+                total = next
+                digest.update(data: chunk)
+                return chunk.count
+            }
+            if consumed == 0 { break }
         }
     } catch {
         let primary = error
@@ -51,4 +55,14 @@ func hashCaptureBytes(url: URL, maximumBytes: Int64, deadline: ContinuousClock.I
     }
     try handle.close()
     return digest.finalize().map { String(format: "%02x", $0) }.joined()
+}
+
+/// A larger saved input gets a proportionate processing deadline. Per-record/output-buffer
+/// guards remain separate; a healthy large file is not rejected at a fixed five-minute mark.
+func captureWorkloadTimeout(url: URL, minimum: Duration) throws -> Duration {
+    var status = stat()
+    guard stat(url.path, &status) == 0 else { throw CaptureEvidenceError.inspectionFailed(path: url.path, code: errno) }
+    guard status.st_mode & S_IFMT == S_IFREG, status.st_size >= 0 else { throw CaptureEvidenceError.nonregularFile(url.path) }
+    let mebibytes = status.st_size / 1_048_576
+    return minimum + .seconds(mebibytes * 2)
 }
