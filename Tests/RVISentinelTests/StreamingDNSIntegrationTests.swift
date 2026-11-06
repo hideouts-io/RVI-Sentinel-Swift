@@ -243,7 +243,7 @@ private func streamingDNSTestCapture() -> Data {
 /// Generated DNS and flow traffic stays within documentation address ranges and is never sent.
 /// Each cycle occupies nine frames; ten-second spacing keeps earlier TTLs out of later cycles.
 func generatedDNSCapacityCapture(cycles: Int) throws -> Data {
-    guard (1...5_000).contains(cycles) else { throw PacketFixtureError.invalidCount }
+    guard (1...10_000).contains(cycles) else { throw PacketFixtureError.invalidCount }
 
     func message(transaction: UInt16, flags: UInt16, question: Data, answers: Data, answerCount: UInt16) -> Data {
         streamingDNSBigEndian(transaction) + streamingDNSBigEndian(flags)

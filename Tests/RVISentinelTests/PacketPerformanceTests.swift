@@ -153,7 +153,7 @@ final class PacketPerformanceTests: XCTestCase {
     }
 
     /// Opt in with RVI_SENTINEL_RUN_DNS_CAPACITY=1; all packets and names are generated.
-    /// RVI_SENTINEL_DNS_CAPACITY_CYCLES selects 1...5,000 cycles; omitted means 5,000.
+    /// RVI_SENTINEL_DNS_CAPACITY_CYCLES selects 1...10,000 cycles; omitted means 5,000.
     /// The process RSS high-water mark excludes TShark and is not a leak measurement.
     func testRealTSharkDNSHeavyCaptureCapacity() async throws {
         guard ProcessInfo.processInfo.environment["RVI_SENTINEL_RUN_DNS_CAPACITY"] == "1" else {
@@ -162,7 +162,7 @@ final class PacketPerformanceTests: XCTestCase {
         guard resolveTShark() != nil else { throw XCTSkip("TShark is not installed on this host.") }
         let cycles: Int
         if let requested = ProcessInfo.processInfo.environment["RVI_SENTINEL_DNS_CAPACITY_CYCLES"] {
-            guard let parsed = Int(requested), (1...5_000).contains(parsed) else { throw PacketFixtureError.invalidCount }
+            guard let parsed = Int(requested), (1...10_000).contains(parsed) else { throw PacketFixtureError.invalidCount }
             cycles = parsed
         } else {
             cycles = 5_000
