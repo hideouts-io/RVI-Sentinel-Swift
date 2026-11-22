@@ -302,20 +302,25 @@ struct AnalysisAccumulator {
 
     mutating func consumeCapturedDNS(messages: [CapturedDNSMessage], records: [PacketRecord]) {
         let packets = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
-        for message in messages where message.isResponse && !message.isTruncated && message.responseCode == 0 {
+        for message in messages {
             guard let packet = packets[message.packetID] else { continue }
-            for record in message.answers {
-                guard let owner = record.owner else { continue }
-                let address: String
-                switch record.value {
-                case let .ipv4(value), let .ipv6(value):
-                    guard record.recordClass & 0x7fff == 1 else { continue }
-                    address = value
-                case .canonicalName, .pointerName, .service: continue
-                }
-                let provenance: EvidenceProvenance = packet.protocolStack.contains("mdns") ? .capturedMDNS : .capturedDNSAnswer
-                addHostname(owner, address: address, provenance: provenance, timestamp: packet.timestamp.displayDate)
+            consumeCapturedDNS(message: message, packet: packet)
+        }
+    }
+
+    mutating func consumeCapturedDNS(message: CapturedDNSMessage, packet: PacketRecord) {
+        guard message.isResponse, !message.isTruncated, message.responseCode == 0 else { return }
+        for record in message.answers {
+            guard let owner = record.owner else { continue }
+            let address: String
+            switch record.value {
+            case let .ipv4(value), let .ipv6(value):
+                guard record.recordClass & 0x7fff == 1 else { continue }
+                address = value
+            case .canonicalName, .pointerName, .service: continue
             }
+            let provenance: EvidenceProvenance = packet.protocolStack.contains("mdns") ? .capturedMDNS : .capturedDNSAnswer
+            addHostname(owner, address: address, provenance: provenance, timestamp: packet.timestamp.displayDate)
         }
     }
 

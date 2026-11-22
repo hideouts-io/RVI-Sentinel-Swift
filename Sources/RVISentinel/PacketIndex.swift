@@ -79,6 +79,9 @@ func pagePacketRecords(result: PacketAnalysisResult, query: PacketRecordQuery, p
 
 func pagePacketRecords(result: PacketAnalysisResult, query: PacketRecordQuery, names: [PacketRecordID: [CapturedHostnameAssociation]], page: PacketPageRequest) throws -> PacketPage {
     guard page.offset >= 0, (1...1_000).contains(page.limit) else { throw PacketDomainError.invalidPage }
+    if let storage = result.diskStorage {
+        return try pageStoredPackets(storage: storage, artifact: result.artifact.id, query: query, page: page)
+    }
     let text = query.text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     let tokens = text.split(whereSeparator: \.isWhitespace).map(String.init)
     var matchingCount = 0
@@ -106,7 +109,7 @@ private func matchesPacket(_ record: PacketRecord, query: PacketRecordQuery, tok
     return tokens.allSatisfy { token in candidates.contains(where: { $0.contains(token) }) }
 }
 
-private func packetSearchValues(_ record: PacketRecord) -> [String] {
+func packetSearchValues(_ record: PacketRecord) -> [String] {
     var values = record.protocolStack + record.protocols.map(\.rawValue) + record.recordedNames.map(\.value) + record.interface.labels.map(\.name)
     values.append(contentsOf: (record.process.labels + record.effectiveProcess.labels).flatMap { label in
         [label.name, label.processID.map(String.init)].compactMap { $0 }

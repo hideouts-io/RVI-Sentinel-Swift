@@ -28,8 +28,9 @@ struct PacketSession: Codable, Identifiable, Equatable, Sendable {
     let lastTimestamp: PacketTimestamp
     let packetIDs: [PacketRecordID]
     let wireBytes: UInt64
+    private let indexedPacketCount: Int?
 
-    var packetCount: Int { packetIDs.count }
+    var packetCount: Int { indexedPacketCount ?? packetIDs.count }
     var firstEndpoint: PacketEndpoint { id.firstEndpoint }
     var secondEndpoint: PacketEndpoint { id.secondEndpoint }
     var interface: PacketInterfaceMetadata { id.interface }
@@ -37,6 +38,24 @@ struct PacketSession: Codable, Identifiable, Equatable, Sendable {
     var effectiveProcess: PacketProcessMetadata { id.effectiveProcess }
     var transport: PacketTransport { id.transport }
     var stream: UInt64 { id.stream }
+
+    init(id: PacketSessionKey, firstTimestamp: PacketTimestamp, lastTimestamp: PacketTimestamp, packetIDs: [PacketRecordID], wireBytes: UInt64) {
+        self.id = id
+        self.firstTimestamp = firstTimestamp
+        self.lastTimestamp = lastTimestamp
+        self.packetIDs = packetIDs
+        self.wireBytes = wireBytes
+        indexedPacketCount = nil
+    }
+
+    init(id: PacketSessionKey, firstTimestamp: PacketTimestamp, lastTimestamp: PacketTimestamp, packetCount: Int, wireBytes: UInt64) {
+        self.id = id
+        self.firstTimestamp = firstTimestamp
+        self.lastTimestamp = lastTimestamp
+        packetIDs = []
+        self.wireBytes = wireBytes
+        indexedPacketCount = packetCount
+    }
 }
 
 private struct PacketSessionAccumulator {

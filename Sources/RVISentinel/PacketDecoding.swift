@@ -185,10 +185,10 @@ private func decodeProcessMetadata(packet: DecodedPacket, fields: [(PacketMetada
         let names = try boundedValues(packet: packet, field: nameField, maximumBytes: 256)
         if ids.count > 1 || names.count > 1 {
             repeated = true
-            labels.append(contentsOf: ids.map { PacketProcessLabel(source: source, processID: $0 == 0 ? nil : Int32($0), name: nil) })
+            labels.append(contentsOf: ids.map { PacketProcessLabel(source: source, processID: Int32($0), name: nil) })
             labels.append(contentsOf: names.map { PacketProcessLabel(source: source, processID: nil, name: $0) })
         } else if !ids.isEmpty || !names.isEmpty {
-            labels.append(PacketProcessLabel(source: source, processID: ids.first.flatMap { $0 == 0 ? nil : Int32($0) }, name: names.first))
+            labels.append(PacketProcessLabel(source: source, processID: ids.first.map(Int32.init), name: names.first))
         }
     }
     let observedIDs = Set(labels.compactMap(\.processID))

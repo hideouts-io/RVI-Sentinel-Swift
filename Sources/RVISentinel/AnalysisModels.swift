@@ -56,6 +56,7 @@ enum ProtocolKind: String, CaseIterable, Codable, Identifiable, Sendable {
 
 enum TSharkField: String, CaseIterable, Codable, Sendable {
     case frameNumber = "frame.number"
+    case frameFileOffset = "frame.file_off"
     case frameTimeEpoch = "frame.time_epoch"
     case frameLength = "frame.len"
     case frameCapturedLength = "frame.cap_len"

@@ -3,6 +3,36 @@ import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum AnalysisQueueStatus: String, Sendable {
+    case queued = "Queued"
+    case analyzing = "Analyzing"
+    case completed = "Completed"
+    case failed = "Failed"
+    case cancelled = "Cancelled"
+}
+
+struct AnalysisQueueItem: Identifiable, Sendable {
+    let id: UUID
+    let captureURL: URL
+    var source: PacketSourceProvenance
+    let expectedSHA256: String?
+    var status: AnalysisQueueStatus
+    var progress: AnalysisProgress
+    var result: NativeAnalysisResult?
+    var error: String?
+
+    init(captureURL: URL, source: PacketSourceProvenance, expectedSHA256: String?) {
+        self.id = UUID()
+        self.captureURL = captureURL
+        self.source = source
+        self.expectedSHA256 = expectedSHA256
+        self.status = .queued
+        self.progress = AnalysisProgress(decodedPackets: 0, status: "Queued. Choose Analyze to start local decoding.")
+        self.result = nil
+        self.error = nil
+    }
+}
+
 @MainActor
 final class AppState: ObservableObject {
     @Published private(set) var setupChecks: [SetupCheck] = []
@@ -16,12 +46,14 @@ final class AppState: ObservableObject {
     @Published private(set) var captureRecovery: CaptureRecovery?
     @Published var analysisCaptureURL: URL?
     @Published var importedCaptureSource = PacketSourceProvenance.unknown
-    @Published private(set) var analysisIntegrity: PacketIntegrityState?
-    private var expectedAnalysisSHA256: String?
+    @Published private(set) var analysisQueue: [AnalysisQueueItem] = []
+    @Published private(set) var selectedAnalysisID: UUID?
     private var analysisOperationID: UUID?
+    private var activeAnalysisTask: Task<NativeAnalysisResult, Error>?
+    private var analysisCancellationTask: Task<Void, Never>?
+    private var analysisCancellationRequested = false
     @Published private(set) var isAnalyzing = false
     @Published private(set) var analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Choose an authorized capture to begin.")
-    @Published private(set) var analysisResult: NativeAnalysisResult?
     @Published var baselineURL: URL?
     @Published private(set) var baselineDocument: BaselineDocument?
     @Published private(set) var baselineComparison: BaselineComparison?
@@ -91,6 +123,22 @@ final class AppState: ObservableObject {
 
     var selectedDevice: DeviceInfo? {
         devices.first { $0.identifier == selectedDeviceIdentifier }
+    }
+
+    // Queue entries own results; selecting a capture shares its disk-backed result.
+    var analysisResult: NativeAnalysisResult? {
+        analysisQueue.first { $0.id == selectedAnalysisID }?.result
+    }
+
+    var analysisIntegrity: PacketIntegrityState? {
+        guard let item = analysisQueue.first(where: { $0.id == selectedAnalysisID }) else { return nil }
+        switch item.status {
+        case .queued: return nil
+        case .analyzing: return .pending
+        case .completed: return item.result?.packetAnalysis?.artifact.integrity
+        case .failed: return .failed(detail: item.error ?? item.progress.status)
+        case .cancelled: return .failed(detail: item.progress.status)
+        }
     }
 
     func runSetupChecks() async {
@@ -206,43 +254,66 @@ final class AppState: ObservableObject {
     func prepareCompletedCaptureForAnalysis() {
         guard !isAnalyzing else { lastError = "Wait for the running analysis or cancel it before selecting another capture."; return }
         guard let captureCompletion else { return }
-        analysisCaptureURL = captureCompletion.savedURL
+        let item = AnalysisQueueItem(captureURL: captureCompletion.savedURL, source: .liveDeviceRVI, expectedSHA256: captureCompletion.sha256)
+        analysisQueue = [item]
+        selectedAnalysisID = item.id
+        analysisCaptureURL = item.captureURL
         importedCaptureSource = .liveDeviceRVI
-        expectedAnalysisSHA256 = captureCompletion.sha256
-        analysisIntegrity = nil
-        analysisResult = nil
         interfaces = []
+        baselineComparison = nil
+        lastError = nil
         analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Ready to analyze the completed RVI capture passively.")
     }
 
     func chooseAnalysisCapture() {
         guard !isAnalyzing else { lastError = "Wait for the running analysis or cancel it before selecting another capture."; return }
         let panel = NSOpenPanel()
-        panel.title = "Choose an Authorized Packet Capture"
+        panel.title = "Choose Authorized Packet Captures"
         panel.prompt = "Choose"
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         let contentTypes = packetCaptureContentTypes()
         guard contentTypes.count == supportedPacketCaptureExtensions.count else {
             lastError = "macOS could not register the supported .pcap, .pcapng, and .cap file types."
             return
         }
         panel.allowedContentTypes = contentTypes
-        if panel.runModal() == .OK, let selectedURL = panel.url {
-            guard supportedPacketCaptureExtensions.contains(selectedURL.pathExtension.lowercased()) else {
-                lastError = "Choose a .pcap, .pcapng, or .cap file."
-                return
-            }
-            analysisCaptureURL = selectedURL
-            importedCaptureSource = .unknown
-            expectedAnalysisSHA256 = nil
-            analysisIntegrity = nil
-            analysisResult = nil
-            interfaces = []
-            baselineComparison = nil
-            analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Ready to analyze locally without active DNS lookups.")
+        // macOS 27 recalculates file/directory eligibility when content types change.
+        // Apply the explicit file-only policy after setting the supported types.
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        if panel.runModal() == .OK {
+            prepareAnalysisQueue(captureURLs: panel.urls)
         }
+    }
+
+    /// Replaces the queue only on an explicit selection; decoding starts separately.
+    func prepareAnalysisQueue(captureURLs: [URL]) {
+        guard !isAnalyzing else { lastError = "Wait for the running analysis or cancel it before selecting another capture."; return }
+        guard !captureURLs.isEmpty, captureURLs.allSatisfy({ $0.isFileURL && supportedPacketCaptureExtensions.contains($0.pathExtension.lowercased()) }) else {
+            lastError = "Choose local .pcap, .pcapng, or .cap files."
+            return
+        }
+        analysisQueue = captureURLs.map { AnalysisQueueItem(captureURL: $0, source: .unknown, expectedSHA256: nil) }
+        selectedAnalysisID = analysisQueue.first?.id
+        analysisCaptureURL = analysisQueue.first?.captureURL
+        importedCaptureSource = .unknown
+        interfaces = []
+        baselineComparison = nil
+        lastError = nil
+        analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Ready to analyze \(captureURLs.count.formatted()) capture(s) locally without active DNS lookups.")
+    }
+
+    func selectAnalysisResult(id: UUID) {
+        guard let item = analysisQueue.first(where: { $0.id == id }), let result = item.result else {
+            lastError = "Select a completed capture to view its analysis."
+            return
+        }
+        selectedAnalysisID = item.id
+        analysisCaptureURL = item.captureURL
+        importedCaptureSource = item.source
+        interfaces = captureReportedIOSInterfaces(names: result.summary.interfaces)
+        if !isAnalyzing { analysisProgress = item.progress }
+        refreshBaselineComparison()
     }
 
     func startAnalysis() async {
@@ -251,40 +322,116 @@ final class AppState: ObservableObject {
             lastError = "Choose an authorized capture first."
             return
         }
+        if analysisQueue.isEmpty || !analysisQueue.contains(where: { $0.id == selectedAnalysisID && $0.captureURL == analysisCaptureURL }) {
+            let source = importedCaptureSource
+            prepareAnalysisQueue(captureURLs: [analysisCaptureURL])
+            guard analysisQueue.count == 1, analysisQueue[0].captureURL == analysisCaptureURL else { return }
+            importedCaptureSource = source
+        }
+        if analysisQueue.contains(where: { $0.status == .queued }) {
+            for index in analysisQueue.indices where analysisQueue[index].status == .queued && analysisQueue[index].source != .liveDeviceRVI {
+                analysisQueue[index].source = importedCaptureSource
+            }
+        } else {
+            let incomplete = analysisQueue.indices.filter { analysisQueue[$0].status == .failed || analysisQueue[$0].status == .cancelled }
+            let retry = incomplete.isEmpty ? analysisQueue.indices.filter { analysisQueue[$0].id == selectedAnalysisID } : incomplete
+            let originCanBeEdited = analysisResult == nil
+            for index in retry {
+                if originCanBeEdited && analysisQueue[index].source != .liveDeviceRVI {
+                    analysisQueue[index].source = importedCaptureSource
+                }
+                analysisQueue[index].status = .queued
+                analysisQueue[index].result = nil
+                analysisQueue[index].error = nil
+                analysisQueue[index].progress = AnalysisProgress(decodedPackets: 0, status: "Queued for an explicitly requested analysis.")
+            }
+        }
         let operationID = UUID()
         analysisOperationID = operationID
         isAnalyzing = true
-        analysisIntegrity = .pending
-        analysisResult = nil
-        interfaces = []
+        analysisCancellationRequested = false
+        if analysisResult == nil {
+            interfaces = []
+            baselineComparison = nil
+        }
         lastError = nil
-        do {
-            let result = try await analyzer.analyze(captureURL: analysisCaptureURL, source: importedCaptureSource, expectedCaptureSHA256: expectedAnalysisSHA256) { [weak self] update in
-                Task { @MainActor in
-                    guard self?.analysisOperationID == operationID else { return }
-                    self?.analysisProgress = update
+        for index in analysisQueue.indices {
+            guard !analysisCancellationRequested && !Task.isCancelled else {
+                cancelPendingAnalyses()
+                break
+            }
+            guard analysisQueue[index].status == .queued else { continue }
+            let item = analysisQueue[index]
+            analysisQueue[index].status = .analyzing
+            analysisQueue[index].progress = AnalysisProgress(decodedPackets: 0, status: "Starting local analysis.")
+            analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Analyzing \(item.captureURL.lastPathComponent).")
+            let analyzer = analyzer
+            let task = Task { [weak self] in
+                try await analyzer.analyze(captureURL: item.captureURL, source: item.source, expectedCaptureSHA256: item.expectedSHA256) { [weak self] update in
+                    Task { @MainActor in
+                        guard let self, self.analysisOperationID == operationID, !self.analysisCancellationRequested,
+                              self.analysisQueue[index].id == item.id, self.analysisQueue[index].status == .analyzing else { return }
+                        self.analysisQueue[index].progress = update
+                        self.analysisProgress = AnalysisProgress(decodedPackets: update.decodedPackets, status: "\(item.captureURL.lastPathComponent): \(update.status)")
+                    }
                 }
             }
-            analysisResult = result
-            analysisIntegrity = result.packetAnalysis?.artifact.integrity
-            interfaces = captureReportedIOSInterfaces(names: result.summary.interfaces)
-            if let baselineDocument {
-                baselineComparison = compareBaseline(document: baselineDocument, result: result, comparedAt: Date())
+            activeAnalysisTask = task
+            do {
+                let result = try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
+                guard !analysisCancellationRequested && !Task.isCancelled else { throw CancellationError() }
+                analysisQueue[index].result = result
+                analysisQueue[index].status = .completed
+                analysisQueue[index].progress = AnalysisProgress(decodedPackets: result.summary.packetCount, status: "Analysis complete. Original capture verified; no active DNS lookup performed.")
+                if analysisResult == nil || selectedAnalysisID == item.id {
+                    selectAnalysisResult(id: item.id)
+                }
+            } catch is CancellationError {
+                analysisQueue[index].status = .cancelled
+                analysisQueue[index].progress = AnalysisProgress(decodedPackets: analysisQueue[index].progress.decodedPackets, status: "Analysis cancelled. The original capture was not changed.")
+                analysisCancellationRequested = true
+                cancelPendingAnalyses()
+            } catch {
+                // Decoder failures stay attached to their capture, including cleanup failures on cancellation.
+                analysisQueue[index].status = .failed
+                analysisQueue[index].error = error.localizedDescription
+                analysisQueue[index].progress = AnalysisProgress(decodedPackets: analysisQueue[index].progress.decodedPackets, status: error.localizedDescription)
+                if analysisQueue.count == 1 { lastError = error.localizedDescription }
             }
-        } catch is CancellationError {
-            analysisIntegrity = .failed(detail: "Analysis cancelled before source verification completed.")
-            analysisProgress = AnalysisProgress(decodedPackets: analysisProgress.decodedPackets, status: "Analysis cancelled. The original capture was not changed.")
-        } catch {
-            analysisIntegrity = .failed(detail: error.localizedDescription)
-            lastError = error.localizedDescription
-            analysisProgress = AnalysisProgress(decodedPackets: analysisProgress.decodedPackets, status: error.localizedDescription)
+            activeAnalysisTask = nil
+        }
+        if let analysisCancellationTask { await analysisCancellationTask.value }
+        if analysisQueue.count == 1, let item = analysisQueue.first {
+            analysisProgress = item.progress
+        } else {
+            let completed = analysisQueue.filter { $0.status == .completed }.count
+            let failed = analysisQueue.filter { $0.status == .failed }.count
+            let cancelled = analysisQueue.filter { $0.status == .cancelled }.count
+            analysisProgress = AnalysisProgress(decodedPackets: 0, status: "Queue finished: \(completed.formatted()) completed, \(failed.formatted()) failed, \(cancelled.formatted()) cancelled.")
         }
         analysisOperationID = nil
+        analysisCancellationTask = nil
+        analysisCancellationRequested = false
         isAnalyzing = false
     }
 
     func cancelAnalysis() async {
-        await analyzer.cancel()
+        guard isAnalyzing, !analysisCancellationRequested else { return }
+        analysisCancellationRequested = true
+        cancelPendingAnalyses()
+        activeAnalysisTask?.cancel()
+        analysisProgress = AnalysisProgress(decodedPackets: analysisProgress.decodedPackets, status: "Cancelling the active capture and pending queue.")
+        let analyzer = analyzer
+        let task = Task { await analyzer.cancel() }
+        analysisCancellationTask = task
+        await task.value
+    }
+
+    private func cancelPendingAnalyses() {
+        for index in analysisQueue.indices where analysisQueue[index].status == .queued {
+            analysisQueue[index].status = .cancelled
+            analysisQueue[index].progress = AnalysisProgress(decodedPackets: 0, status: "Cancelled before analysis started. The original capture was not changed.")
+        }
     }
 
     func chooseBaseline() {
